@@ -1,0 +1,16 @@
+#!/bin/sh
+
+set -e
+
+PYTHON_EXECUTABLE=$(which python3)
+
+if [ -z "$PYTHON_EXECUTABLE" ]; then
+    echo "Python 3 is not installed. Please install Python 3 to run this application."
+    exit 1
+fi
+
+$PYTHON_EXECUTABLE -m venv .venv/ &&
+. .venv/bin/activate &&
+pip install --upgrade pip &&
+pip install -r requirements.txt &&
+echo "Environment setup complete."
