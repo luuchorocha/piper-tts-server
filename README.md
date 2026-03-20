@@ -159,6 +159,8 @@ docker run -p 5000:5000 -v /path/to/models:/models piper-tts
 docker run -p 5000:5000 -e PIPER_ALLOW_DOWNLOADS=1 piper-tts
 ```
 
+The production image binds to `0.0.0.0` and reads the listen port from `$PORT`, so the same image works locally and on Heroku without extra CLI flags.
+
 ### Verify
 
 ```sh
@@ -177,6 +179,20 @@ The endpoint returns HTTP `200` when the configured default voice is available a
 heroku container:login
 heroku container:push web --app story-maker-piper
 heroku container:release web --app story-maker-piper
+```
+
+The container reads Heroku's runtime `PORT` environment variable automatically, so no Procfile command override is required.
+
+Heroku dynos have an ephemeral filesystem. If the default voice is downloaded into `/models`, it will be lost on dyno restart or redeploy. For predictable boot-time readiness you have two options:
+
+- extend the image/build process to bake the default voice into the image at build time
+- allow on-demand downloads and accept that `/health` will stay `503` until the default voice exists locally
+
+Useful checks after deploy:
+
+```sh
+heroku logs --tail --app story-maker-piper
+curl https://story-maker-piper.herokuapp.com/health
 ```
 
 The Rails app connects via the `PIPER_URL` env var (e.g. `https://story-maker-piper-abc123.herokuapp.com`).
