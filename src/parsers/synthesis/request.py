@@ -18,6 +18,31 @@ class RequestValidationError(ValueError):
     pass
 
 
+def parse_optional_grammar(value: Any) -> Optional[tuple[str, ...]]:
+    if value is None or value == "":
+        return None
+
+    if isinstance(value, str):
+        phrases = [p.strip() for p in value.split("|") if p.strip()]
+        if not phrases:
+            raise RequestValidationError("grammar must include at least one phrase")
+        return tuple(phrases)
+
+    if isinstance(value, list):
+        phrases: list[str] = []
+        for item in value:
+            if not isinstance(item, str):
+                raise RequestValidationError("grammar list must only contain strings")
+            item = item.strip()
+            if item:
+                phrases.append(item)
+        if not phrases:
+            raise RequestValidationError("grammar must include at least one phrase")
+        return tuple(phrases)
+
+    raise RequestValidationError("grammar must be a string or list of strings")
+
+
 def parse_optional_int(value: Any, *, field_name: str) -> Optional[int]:
     if value is None or value == "":
         return None
@@ -71,6 +96,7 @@ class SynthesisRequest:
     normalize_audio: bool
     volume: float
     include_alignments: bool
+    grammar: Optional[tuple[str, ...]]
     has_length_scale: bool
     has_noise_scale: bool
     has_noise_w_scale: bool
@@ -169,6 +195,7 @@ class SynthesisRequest:
                 default=False,
                 error_type=RequestValidationError,
             ),
+            grammar=parse_optional_grammar(data.get("grammar")),
             has_length_scale=(
                 "length_scale" in data and data.get("length_scale") not in ("", None)
             ),

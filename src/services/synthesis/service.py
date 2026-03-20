@@ -10,8 +10,7 @@ from piper import PiperVoice, SynthesisConfig
 from src.parsers.synthesis.request import SynthesisRequest
 from src.services.alignment import (
     AlignmentResult,
-    group_phonemes_into_words,
-    phoneme_alignments_to_timestamps,
+    align_from_silence_and_grammar,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -112,10 +111,9 @@ def synthesize_text(
 
     buffer = io.BytesIO()
     sample_rate = 22050  # will be updated from first chunk
-    all_phoneme_timestamps = []
     time_offset = 0.0
-    alignment_supported = True
-    alignment_error: Optional[str] = None
+    sample_channels = 1
+    sample_width = 2
 
     with wave.open(buffer, "wb") as wav_file:
         params_set = False
@@ -123,7 +121,7 @@ def synthesize_text(
             voice.synthesize(
                 request_data.text,
                 synthesis_config,
-                include_alignments=include_alignments,
+                include_alignments=False,
             )
         ):
             if not params_set:
@@ -131,6 +129,8 @@ def synthesize_text(
                 wav_file.setsampwidth(chunk.sample_width)
                 wav_file.setnchannels(chunk.sample_channels)
                 sample_rate = chunk.sample_rate
+                sample_channels = chunk.sample_channels
+                sample_width = chunk.sample_width
                 params_set = True
 
             # Add silence between sentences
@@ -146,24 +146,6 @@ def synthesize_text(
 
             wav_file.writeframes(chunk.audio_int16_bytes)
 
-            # Collect alignment data if requested
-            if include_alignments:
-                if chunk.phoneme_id_samples is None:
-                    alignment_supported = False
-                    alignment_error = (
-                        "Voice model does not expose alignment outputs"
-                    )
-                elif chunk.phoneme_alignments:
-                    chunk_phonemes = phoneme_alignments_to_timestamps(
-                        chunk.phoneme_alignments,
-                        sample_rate,
-                        time_offset,
-                    )
-                    all_phoneme_timestamps.extend(chunk_phonemes)
-                else:
-                    alignment_supported = False
-                    alignment_error = "Voice model returned audio but no usable alignments"
-
             # Update time offset for next chunk
             chunk_duration = len(chunk.audio_int16_bytes) / (
                 chunk.sample_rate * chunk.sample_width * chunk.sample_channels
@@ -174,17 +156,32 @@ def synthesize_text(
 
     # Build alignment result if requested
     alignment = None
+    alignment_supported = True
+    alignment_error: Optional[str] = None
     if include_alignments:
-        alignment = AlignmentResult(
-            phonemes=all_phoneme_timestamps,
-            words=group_phonemes_into_words(request_data.text, all_phoneme_timestamps),
-            sample_rate=sample_rate,
-        )
+        if sample_width != 2:
+            alignment_supported = False
+            alignment_error = "Silence aligner supports 16-bit PCM audio only"
+            alignment = AlignmentResult(sample_rate=sample_rate)
+        else:
+            with wave.open(io.BytesIO(wav_bytes), "rb") as wav_reader:
+                pcm_bytes = wav_reader.readframes(wav_reader.getnframes())
+
+            alignment = align_from_silence_and_grammar(
+                text=request_data.text,
+                grammar=request_data.grammar,
+                pcm_bytes=pcm_bytes,
+                sample_rate=sample_rate,
+                channels=sample_channels,
+            )
+            if not alignment.words:
+                alignment_supported = False
+                alignment_error = "Could not detect speech regions for grammar alignment"
 
     return SynthesisResult(
         wav_bytes=wav_bytes,
         sample_rate=sample_rate,
         alignment=alignment,
-        alignment_supported=(alignment_supported and bool(all_phoneme_timestamps or not include_alignments)),
+        alignment_supported=(alignment_supported and bool(alignment and alignment.words or not include_alignments)),
         alignment_error=alignment_error,
     )

@@ -14,6 +14,9 @@
     noiseWScale: document.getElementById("noise_w_scale"),
     volume: document.getElementById("volume"),
     normalizeAudio: document.getElementById("normalize_audio"),
+    includeAlignments: document.getElementById("include_alignments"),
+    showTimestamps: document.getElementById("show_timestamps"),
+    grammar: document.getElementById("grammar"),
     text: document.getElementById("text")
   };
 
@@ -34,6 +37,26 @@
     fields.noiseWScale.value = config.defaults.noise_w_scale;
     fields.volume.value = config.defaults.volume;
     fields.normalizeAudio.checked = Boolean(config.defaults.normalize_audio);
+    fields.includeAlignments.checked = Boolean(config.defaults.include_alignments);
+    fields.grammar.value = "";
+  }
+
+  function parseGrammarInput(rawValue) {
+    const lines = rawValue
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    return lines.length > 0 ? lines : null;
+  }
+
+  function base64ToWavBlob(base64Data) {
+    const binary = atob(base64Data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return new Blob([bytes], { type: "audio/wav" });
   }
 
   function inferLanguageCode(voiceId) {
@@ -196,7 +219,55 @@
     return parsed;
   }
 
-  function addHistoryRow(payload, audioBlob) {
+  function renderSeekableWords(textCell, audioNode, wordAlignments) {
+    const listNode = document.createElement("div");
+    listNode.className = "word-list";
+
+    const seekAndPlay = (startSeconds) => {
+      const playFrom = Number.isFinite(startSeconds) && startSeconds >= 0 ? startSeconds : 0;
+      const applySeek = () => {
+        audioNode.currentTime = Math.max(0, playFrom);
+        audioNode.play().catch(() => {
+          // Ignore autoplay restrictions; user can press play manually.
+        });
+      };
+
+      if (audioNode.readyState >= 1) {
+        applySeek();
+      } else {
+        audioNode.addEventListener("loadedmetadata", applySeek, { once: true });
+      }
+    };
+
+    wordAlignments.forEach((wordData) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "word-chip";
+      chip.dataset.start = String(wordData.start);
+
+      const wordText = document.createTextNode(String(wordData.word || ""));
+      chip.appendChild(wordText);
+
+      const badge = document.createElement("span");
+      badge.className = "word-chip-time";
+      badge.textContent = "(" + Number(wordData.start).toFixed(2) + "s)";
+      chip.appendChild(badge);
+
+      chip.addEventListener("click", () => {
+        seekAndPlay(Number(chip.dataset.start));
+      });
+
+      listNode.appendChild(chip);
+    });
+
+    if (fields.showTimestamps.checked) {
+      listNode.classList.add("show-timestamps");
+    }
+
+    textCell.appendChild(listNode);
+  }
+
+  function addHistoryRow(payload, audioBlob, wordAlignments) {
     const emptyRow = historyBody.querySelector(".empty-state-row");
     if (emptyRow) {
       emptyRow.remove();
@@ -217,7 +288,12 @@
     createdCell.textContent = new Date().toLocaleTimeString();
     languageCell.textContent = activeGroup ? activeGroup.label : languageSelect.value;
     voiceCell.textContent = activeVoice ? activeVoice.label : payload.voice;
-    textCell.textContent = payload.text;
+    textCell.className = "text-cell";
+    if (Array.isArray(wordAlignments) && wordAlignments.length > 0) {
+      renderSeekableWords(textCell, audioNode, wordAlignments);
+    } else {
+      textCell.textContent = payload.text;
+    }
     audioNode.controls = true;
     audioNode.src = audioUrl;
     audioCell.appendChild(audioNode);
@@ -229,6 +305,12 @@
     row.appendChild(audioCell);
     historyBody.prepend(row);
   }
+
+  fields.showTimestamps.addEventListener("change", () => {
+    historyBody.querySelectorAll(".word-list").forEach((list) => {
+      list.classList.toggle("show-timestamps", fields.showTimestamps.checked);
+    });
+  });
 
   languageSelect.addEventListener("change", () => {
     populateVoices();
@@ -248,6 +330,7 @@
       const payload = {
         voice: voiceSelect.value,
         text,
+        include_alignments: fields.includeAlignments.checked,
         sentence_silence: numericValue(fields.sentenceSilence, {
           label: "sentence_silence",
           defaultValue: config.defaults.sentence_silence,
@@ -275,6 +358,11 @@
         }),
         normalize_audio: fields.normalizeAudio.checked
       };
+
+      const grammar = parseGrammarInput(fields.grammar.value);
+      if (grammar) {
+        payload.grammar = grammar;
+      }
 
       const speakerId = numericValue(fields.speakerId, {
         label: "speaker_id",
@@ -306,9 +394,30 @@
         throw new Error(errorMessage);
       }
 
-      const audioBlob = await response.blob();
-      addHistoryRow(payload, audioBlob);
-      setStatus("Audio generated.", "success");
+      let audioBlob;
+      let wordAlignments = null;
+      if (payload.include_alignments) {
+        const alignedPayload = await response.json();
+        if (!alignedPayload || !alignedPayload.audio_base64) {
+          throw new Error("Missing audio_base64 in alignment response");
+        }
+
+        audioBlob = base64ToWavBlob(alignedPayload.audio_base64);
+        if (alignedPayload.alignments && Array.isArray(alignedPayload.alignments.words)) {
+          wordAlignments = alignedPayload.alignments.words;
+        }
+
+        if (alignedPayload.alignment_supported === false && alignedPayload.alignment_error) {
+          setStatus(`Audio generated (alignment warning: ${alignedPayload.alignment_error})`, "warning");
+        }
+      } else {
+        audioBlob = await response.blob();
+      }
+
+      addHistoryRow(payload, audioBlob, wordAlignments);
+      if (!(payload.include_alignments && statusNode.dataset.tone === "warning")) {
+        setStatus("Audio generated.", "success");
+      }
     } catch (error) {
       setStatus(error.message || "Failed to generate audio.", "error");
     } finally {

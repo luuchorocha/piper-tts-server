@@ -16,6 +16,45 @@
 
     body {
       margin: 0;
+
+    td.text-cell {
+      font-size: 16px;
+      line-height: 1.55;
+      min-width: 280px;
+    }
+
+    .word-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .word-chip {
+      width: auto;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid #d0d0d0;
+      background: #f7f7f7;
+      color: #111;
+      font-size: 15px;
+      line-height: 1.2;
+      cursor: pointer;
+    }
+
+    .word-chip:hover {
+      background: #ececec;
+    }
+
+    .word-chip-time {
+      font-size: 11px;
+      color: #888;
+      margin-left: 3px;
+      display: none;
+    }
+
+    .show-timestamps .word-chip-time {
+      display: inline;
+    }
       background: #f5f5f5;
       color: #111;
     }
@@ -210,6 +249,25 @@
         <label class="checkbox-field" for="normalize_audio">
           <input id="normalize_audio" name="normalize_audio" type="checkbox">
           normalize_audio
+        </label>
+
+        <label class="checkbox-field" for="include_alignments">
+          <input id="include_alignments" name="include_alignments" type="checkbox">
+          include_alignments
+        </label>
+
+        <label class="checkbox-field" for="show_timestamps">
+          <input id="show_timestamps" name="show_timestamps" type="checkbox">
+          show_timestamps (debug)
+        </label>
+
+        <label>
+          Grammar (optional)
+          <textarea
+            id="grammar"
+            name="grammar"
+            placeholder="One phrase per line, e.g.&#10;Hello world&#10;This is phrase two"
+          ></textarea>
         </label>
 
         <label>

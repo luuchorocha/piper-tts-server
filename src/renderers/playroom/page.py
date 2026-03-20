@@ -51,6 +51,7 @@ def build_playroom_html(
             ),
             "volume": DEFAULT_VOLUME,
             "normalize_audio": DEFAULT_NORMALIZE_AUDIO,
+            "include_alignments": False,
         },
     }
 

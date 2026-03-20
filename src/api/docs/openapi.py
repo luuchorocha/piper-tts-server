@@ -77,6 +77,21 @@ def _synthesis_parameters(*, include_alignments: bool) -> list[dict]:
             "schema": {"type": "boolean"},
             "description": "Normalize audio amplitude before returning the WAV.",
         },
+        {
+            "name": "grammar",
+            "in": "query",
+            "required": False,
+            "schema": {
+                "oneOf": [
+                    {"type": "string", "description": "Phrase string separated by '|'"},
+                    {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                ]
+            },
+            "description": "Optional alignment grammar hints. Example: 'Hello world|This is phrase two'.",
+        },
     ]
 
     if include_alignments:
@@ -400,6 +415,15 @@ def build_openapi_schema() -> dict:
                         "volume": {"type": "number"},
                         "normalize_audio": {"type": "boolean"},
                         "include_alignments": {"type": "boolean"},
+                        "grammar": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                            ]
+                        },
                     },
                 },
                 "PhonemeTimestamp": {

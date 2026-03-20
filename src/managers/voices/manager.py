@@ -158,3 +158,11 @@ class VoiceManager:
     @classmethod
     def release_ephemeral(cls, voice: PiperVoice) -> None:
         cls._release_voice(voice)
+
+
+__all__ = [
+    "VoiceManager",
+    "VoiceDownloadError",
+    "VoiceDownloadBusyError",
+    "VoiceDownloadsDisabledError",
+]
