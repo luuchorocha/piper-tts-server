@@ -2,15 +2,37 @@
 
 set -e
 
-PYTHON_EXECUTABLE=$(which python3)
+ROOT_DIR=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+VENV_DIR=$ROOT_DIR/.venv
 
-if [ -z "$PYTHON_EXECUTABLE" ]; then
-    echo "Python 3 is not installed. Please install Python 3 to run this application."
-    exit 1
+show_help() {
+    printf '%s\n' 'Usage: bin/env [OPTIONS]'
+    printf '%s\n' ''
+    printf '%s\n' 'Create or update the local Python virtual environment and install requirements.'
+    printf '%s\n' ''
+    printf '%s\n' 'Options:'
+    printf '%s\n' '  -h, --help  Show this help message and exit'
+}
+
+case ${1-} in
+    -h|--help)
+        show_help
+        return 0 2>/dev/null || exit 0
+        ;;
+esac
+
+if ! PYTHON_EXECUTABLE=$(command -v python3); then
+    printf '%s\n' 'Python 3 is not installed. Please install Python 3 to run this application.' >&2
+    return 1 2>/dev/null || exit 1
 fi
 
-$PYTHON_EXECUTABLE -m venv .venv/ &&
-. .venv/bin/activate &&
-pip install --upgrade pip &&
-pip install -r requirements.txt &&
-echo "Environment setup complete."
+"$PYTHON_EXECUTABLE" -m venv "$VENV_DIR"
+
+PATH=$VENV_DIR/bin:$PATH
+VIRTUAL_ENV=$VENV_DIR
+export PATH VIRTUAL_ENV
+
+"$VENV_DIR/bin/python" -m pip install --quiet --disable-pip-version-check --progress-bar off --upgrade pip
+"$VENV_DIR/bin/python" -m pip install --quiet --disable-pip-version-check --progress-bar off -r "$ROOT_DIR/requirements.txt"
+
+printf '%s\n' 'Environment setup complete.'

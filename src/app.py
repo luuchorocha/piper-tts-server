@@ -2,7 +2,6 @@ import argparse
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from sys import stdout as sys_stdout
 from pathlib import Path
 from typing import Optional
 
@@ -12,7 +11,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from src.api.routes import build_routes
-from src.cli.args import build_app_arg_parser, build_uvicon_arg_parser
+from src.cli.args import build_app_arg_parser, build_uvicorn_arg_parser
 from src.core.context import AppContext
 from src.core.session import build_session_options
 from src.managers.voices.loader import resolve_model_path
@@ -32,9 +31,20 @@ def build_lifespan(context: AppContext):
 
 
 def create_app() -> Starlette:
-    args = build_app_arg_parser().parse_args()
+    args, _ = build_app_arg_parser().parse_known_args()
+    return create_app_from_args(args)
+
+
+def create_app_from_args(args: argparse.Namespace) -> Starlette:
+    setup_logging(args)
     data_dirs = [Path(data_dir) for data_dir in args.data_dir]
     download_dir = Path(args.download_dir) if args.download_dir else data_dirs[0]
+
+    for data_dir in data_dirs:
+        data_dir.mkdir(parents=True, exist_ok=True)
+
+    download_dir.mkdir(parents=True, exist_ok=True)
+
     default_model_id = Path(args.model).name.removesuffix(".onnx")
     session_options = build_session_options(args)
 
@@ -42,10 +52,6 @@ def create_app() -> Starlette:
         default_model_path: Optional[Path] = resolve_model_path(args.model, data_dirs)
     except ValueError:
         default_model_path = None
-        LOGGER.warning(
-            "Default voice '%s' not found at boot - will resolve lazily",
-            default_model_id,
-        )
 
     voice_manager = VoiceManager(
         data_dirs=data_dirs,
@@ -76,7 +82,6 @@ def setup_logging(args: argparse.Namespace) -> None:
         level=logging.DEBUG if args.debug else logging.INFO,
         format="[%(asctime)s] %(levelname)s in %(module)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
-        stream=sys_stdout,
         force=True,
     )
 
@@ -91,10 +96,18 @@ async def server_error(request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse({"error": "Internal server error"}, status_code=500)
 
 def main() -> None:
-    args = build_uvicon_arg_parser().parse_args()
+    parser = argparse.ArgumentParser(
+        description="Piper TTS HTTP server",
+        parents=[
+            build_app_arg_parser(add_help=False),
+            build_uvicorn_arg_parser(add_help=False),
+        ],
+    )
+    args = parser.parse_args()
+    app = create_app_from_args(args)
 
     uvicorn.run(
-        app=create_app(),
+        app=app,
         host=args.host,
         port=args.port,
         log_level=args.log_level,

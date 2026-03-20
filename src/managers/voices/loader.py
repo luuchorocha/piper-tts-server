@@ -1,3 +1,4 @@
+import gc
 import json
 import logging
 from pathlib import Path
@@ -49,3 +50,16 @@ def load_voice(
         ),
         download_dir=download_dir,
     )
+
+
+def unload_voice(voice: PiperVoice) -> None:
+    try:
+        del voice.session
+        del voice
+    except AttributeError:
+        pass
+    finally:
+        gc.collect()
+
+
+__all__ = ["load_voice", "resolve_model_path", "unload_voice"]

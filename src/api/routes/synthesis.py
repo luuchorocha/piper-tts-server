@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import json
 import logging
 import time
 from typing import Any
@@ -8,11 +7,7 @@ from typing import Any
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-from src.api.common.json_body import (
-    BodyTooLarge,
-    InvalidJSONPayload,
-    read_json,
-)
+from src.api.common.json_body import json_body_error_response, read_json
 from src.core.context import AppContext
 from src.parsers.synthesis.request import (
     RequestValidationError,
@@ -30,27 +25,22 @@ async def _read_request_data(request: Request) -> dict[str, Any]:
     return await read_json(request)
 
 
-def build_synthesis_handler(context: AppContext):
+def build_synthesis_handler(
+    context: AppContext,
+    *,
+    force_alignments: bool = False,
+):
     async def synthesize(request: Request) -> Response:
         started_at = time.monotonic()
 
         try:
             data = await _read_request_data(request)
-        except BodyTooLarge:
-            return JSONResponse(
-                {"error": "Request body exceeds 128 KB limit"},
-                status_code=413,
-            )
-        except json.JSONDecodeError:
-            return JSONResponse(
-                {"error": "Invalid JSON in request body"},
-                status_code=400,
-            )
-        except InvalidJSONPayload:
-            return JSONResponse(
-                {"error": "Request body must be a JSON object"},
-                status_code=400,
-            )
+        except Exception as exc:
+            return json_body_error_response(exc)
+
+        if force_alignments:
+            data = dict(data)
+            data["include_alignments"] = True
 
         try:
             synthesis_request = SynthesisRequest.from_payload(
@@ -97,6 +87,8 @@ def build_synthesis_handler(context: AppContext):
             return JSONResponse({
                 "audio_base64": base64.b64encode(result.wav_bytes).decode("ascii"),
                 "sample_rate": result.sample_rate,
+                "alignment_supported": result.alignment_supported,
+                "alignment_error": result.alignment_error,
                 "alignments": result.alignment.to_dict(),
             })
 

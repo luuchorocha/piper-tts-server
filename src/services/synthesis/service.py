@@ -67,6 +67,8 @@ class SynthesisResult:
     wav_bytes: bytes
     sample_rate: int
     alignment: Optional[AlignmentResult] = None
+    alignment_supported: bool = True
+    alignment_error: Optional[str] = None
 
 
 def synthesize_text(
@@ -112,6 +114,8 @@ def synthesize_text(
     sample_rate = 22050  # will be updated from first chunk
     all_phoneme_timestamps = []
     time_offset = 0.0
+    alignment_supported = True
+    alignment_error: Optional[str] = None
 
     with wave.open(buffer, "wb") as wav_file:
         params_set = False
@@ -143,13 +147,22 @@ def synthesize_text(
             wav_file.writeframes(chunk.audio_int16_bytes)
 
             # Collect alignment data if requested
-            if include_alignments and chunk.phoneme_alignments:
-                chunk_phonemes = phoneme_alignments_to_timestamps(
-                    chunk.phoneme_alignments,
-                    sample_rate,
-                    time_offset,
-                )
-                all_phoneme_timestamps.extend(chunk_phonemes)
+            if include_alignments:
+                if chunk.phoneme_id_samples is None:
+                    alignment_supported = False
+                    alignment_error = (
+                        "Voice model does not expose alignment outputs"
+                    )
+                elif chunk.phoneme_alignments:
+                    chunk_phonemes = phoneme_alignments_to_timestamps(
+                        chunk.phoneme_alignments,
+                        sample_rate,
+                        time_offset,
+                    )
+                    all_phoneme_timestamps.extend(chunk_phonemes)
+                else:
+                    alignment_supported = False
+                    alignment_error = "Voice model returned audio but no usable alignments"
 
             # Update time offset for next chunk
             chunk_duration = len(chunk.audio_int16_bytes) / (
@@ -172,4 +185,6 @@ def synthesize_text(
         wav_bytes=wav_bytes,
         sample_rate=sample_rate,
         alignment=alignment,
+        alignment_supported=(alignment_supported and bool(all_phoneme_timestamps or not include_alignments)),
+        alignment_error=alignment_error,
     )

@@ -1,7 +1,9 @@
-from src.managers.voices.manager import (
+from src.managers.voices.errors import (
     VoiceDownloadBusyError,
     VoiceDownloadError,
     VoiceDownloadsDisabledError,
+)
+from src.managers.voices.manager import (
     VoiceManager,
 )
 

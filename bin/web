@@ -2,5 +2,18 @@
 
 set -e
 
-. bin/env &&
-python3 main.py
+ROOT_DIR=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+. "$ROOT_DIR/bin/common"
+
+case ${1-} in
+	-h|--help)
+		show_script_help \
+			'bin/web' \
+			'Prepare the environment and start the Piper HTTP server.'
+		exit 0
+		;;
+esac
+
+. "$ROOT_DIR/bin/env"
+cd "$ROOT_DIR"
+exec python3 main.py "$@"

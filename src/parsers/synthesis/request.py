@@ -11,6 +11,7 @@ from src.core.constants import (
     MAX_TEXT_LENGTH,
     VOICE_ID_RE,
 )
+from src.parsers.common import parse_bool
 
 
 class RequestValidationError(ValueError):
@@ -55,26 +56,6 @@ def parse_float(
         raise RequestValidationError(f"{field_name} must be >= {min_value}")
 
     return parsed
-
-
-def parse_bool(value: Any, *, field_name: str, default: bool) -> bool:
-    if value is None or value == "":
-        return default
-
-    if isinstance(value, bool):
-        return value
-
-    if isinstance(value, (int, float)) and value in (0, 1):
-        return bool(value)
-
-    if isinstance(value, str):
-        normalized = value.strip().lower()
-        if normalized in {"1", "true", "yes", "on"}:
-            return True
-        if normalized in {"0", "false", "no", "off"}:
-            return False
-
-    raise RequestValidationError(f"{field_name} must be a boolean")
 
 
 @dataclass(frozen=True)
@@ -175,6 +156,7 @@ class SynthesisRequest:
                 data.get("normalize_audio"),
                 field_name="normalize_audio",
                 default=DEFAULT_NORMALIZE_AUDIO,
+                error_type=RequestValidationError,
             ),
             volume=parse_float(
                 data.get("volume"),
@@ -185,6 +167,7 @@ class SynthesisRequest:
                 data.get("include_alignments"),
                 field_name="include_alignments",
                 default=False,
+                error_type=RequestValidationError,
             ),
             has_length_scale=(
                 "length_scale" in data and data.get("length_scale") not in ("", None)
