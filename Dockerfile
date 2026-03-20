@@ -31,10 +31,10 @@ RUN mkdir -p /models
 
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY main.py /usr/local/bin/main.py
-COPY piper_http /usr/local/bin/piper_http
+COPY src /usr/local/bin/src
 
 RUN useradd -m -u 1000 piper && \
-  chown -R piper:piper /models /usr/local/bin/main.py /usr/local/bin/piper_http
+  chown -R piper:piper /models /usr/local/bin/main.py /usr/local/bin/src
 
 USER piper
 

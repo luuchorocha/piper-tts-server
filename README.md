@@ -93,7 +93,7 @@ Rate-limited to one download at a time with a 90-second cooldown.
 | File                    | Purpose                                              |
 |-------------------------|------------------------------------------------------|
 | `main.py`               | Thin entrypoint that launches the modular server      |
-| `piper_http/`           | Server package: CLI, routes, managers, parsers, renderers, services |
+| `src/`           | Server package: CLI, routes, managers, parsers, renderers, services |
 | `Dockerfile`            | Production image (python:3.11-slim)                   |
 | `.dockerignore`         | Whitelist for Docker build context                    |
 | `requirements.txt`      | Pinned production Python dependencies                 |
