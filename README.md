@@ -98,8 +98,10 @@ Rate-limited to one download at a time with a 90-second cooldown.
 | `.dockerignore`         | Whitelist for Docker build context                    |
 | `requirements.txt`      | Pinned production Python dependencies                 |
 | `.python-version`       | Pins Python 3.11 for pyenv/asdf/mise                  |
-| `run.sh`                | Local bootstrap: creates venv, installs deps, starts server |
-| `deploy.sh`             | One-command Heroku deployment                         |
+| `bin/env`               | Creates or refreshes the local Python virtualenv      |
+| `bin/dev`               | Preferred local development entrypoint                |
+| `bin/web`               | Minimal server entrypoint without the dev banner      |
+| `bin/deploy`            | One-command Heroku deployment                         |
 
 ## Local Development
 
@@ -124,11 +126,21 @@ pip install -r requirements.txt
 ### Run the server
 
 ```sh
+# Preferred local entrypoint
+./bin/dev -m en_US-lessac-low --data-dir . --port 5000 --debug
+```
+
+If you want to separate environment setup from server startup:
+
+```sh
+./bin/env
+
 # Download a voice model first (if you don't have one)
+. .venv/bin/activate
 python3 -c "from piper.download_voices import download_voice; download_voice('en_US-lessac-low', '.')"
 
-# Start the server
-python3 main.py -m en_US-lessac-low --data-dir . --port 5000 --debug
+# Start the server without the development banner
+./bin/web -m en_US-lessac-low --data-dir . --port 5000 --debug
 ```
 
 ### Test synthesis
@@ -173,12 +185,18 @@ The endpoint returns HTTP `200` when the configured default voice is available a
 
 ```sh
 # One-command deploy
-./deploy.sh
+./bin/deploy
 
 # Or manually
 heroku container:login
 heroku container:push web --app story-maker-piper
 heroku container:release web --app story-maker-piper
+```
+
+To target a different Heroku app:
+
+```sh
+HEROKU_APP_NAME=my-piper-app ./bin/deploy
 ```
 
 The container reads Heroku's runtime `PORT` environment variable automatically, so no Procfile command override is required.
