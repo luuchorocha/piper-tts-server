@@ -8,7 +8,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from src.api.common.json_body import json_body_error_response, read_json
-from src.core.context import AppContext
+from src.core.context import AppContext, SynthesisOverloadedError
 from src.parsers.synthesis.request import (
     RequestValidationError,
     SynthesisRequest,
@@ -68,10 +68,25 @@ def build_synthesis_handler(
                     context.voice_manager.release_ephemeral(voice)
 
         try:
-            async with context.synthesis_semaphore:
+            async with context.synthesis_capacity.slot():
                 result = await asyncio.to_thread(_do_synthesis)
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, status_code=404)
+        except SynthesisOverloadedError as exc:
+            elapsed = time.monotonic() - started_at
+            LOGGER.warning(
+                "[synthesize] overloaded voice=%s text_len=%d elapsed=%.3fs",
+                synthesis_request.requested_voice,
+                len(synthesis_request.text),
+                elapsed,
+            )
+            return JSONResponse(
+                {"error": str(exc)},
+                status_code=503,
+                headers={
+                    "Retry-After": str(max(1, int(context.args.synthesis_acquire_timeout_seconds))),
+                },
+            )
         except Exception:
             elapsed = time.monotonic() - started_at
             LOGGER.exception(

@@ -141,6 +141,10 @@ def _synthesis_responses(*, default_json: bool) -> dict:
             "description": "Requested voice could not be resolved.",
             "content": {"application/json": {"schema": _schema_ref("ErrorResponse")}},
         },
+        "503": {
+            "description": "Synthesis capacity is saturated. Retry later.",
+            "content": {"application/json": {"schema": _schema_ref("ErrorResponse")}},
+        },
         "500": {
             "description": "Unexpected synthesis failure.",
             "content": {"application/json": {"schema": _schema_ref("ErrorResponse")}},
@@ -387,9 +391,19 @@ def build_openapi_schema() -> dict:
                     "type": "object",
                     "required": ["status", "voice"],
                     "properties": {
-                        "status": {"type": "string", "enum": ["ok", "error"]},
+                        "status": {"type": "string", "enum": ["ok", "overloaded", "error"]},
                         "voice": {"type": "string"},
                         "error": {"type": "string"},
+                        "synthesis": {
+                            "type": "object",
+                            "properties": {
+                                "limit": {"type": "integer"},
+                                "in_flight": {"type": "integer"},
+                                "waiting": {"type": "integer"},
+                                "max_waiting": {"type": "integer"},
+                                "acquire_timeout_seconds": {"type": "number"},
+                            },
+                        },
                     },
                 },
                 "DownloadRequest": {

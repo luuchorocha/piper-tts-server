@@ -122,6 +122,21 @@ def build_uvicorn_arg_parser(*, add_help: bool = True) -> ArgumentParser:
         type=int,
         default=server_defaults.timeout_keep_alive,
     )
+    parser.add_argument(
+        "--synthesis-concurrency",
+        type=int,
+        default=server_defaults.synthesis_concurrency,
+    )
+    parser.add_argument(
+        "--synthesis-acquire-timeout-seconds",
+        type=float,
+        default=server_defaults.synthesis_acquire_timeout_seconds,
+    )
+    parser.add_argument(
+        "--max-waiting-synthesis-requests",
+        type=int,
+        default=server_defaults.max_waiting_synthesis_requests,
+    )
 
     return parser
 

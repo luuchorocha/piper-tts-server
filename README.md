@@ -167,7 +167,7 @@ The production image binds to `0.0.0.0` and reads the listen port from `$PORT`, 
 curl http://localhost:5000/health
 ```
 
-The endpoint returns HTTP `200` when the configured default voice is available and loadable locally, and HTTP `503` otherwise.
+The endpoint returns HTTP `200` when the configured default voice is available and the synthesis queue is healthy. It returns HTTP `503` when the default voice is unavailable or the synthesis capacity is saturated.
 
 ## Deployment (Heroku)
 
@@ -207,12 +207,15 @@ The Rails app connects via the `PIPER_URL` env var (e.g. `https://story-maker-pi
 | `DATA_DIR` | `/models` | Directory to search for `.onnx` voice files |
 | `PORT` | `5000` | HTTP listen port |
 | `PIPER_ALLOW_DOWNLOADS` | `true` | Enable `/download` endpoint |
+| `SYNTHESIS_CONCURRENCY` | `1` | Max simultaneous synthesis requests allowed inside a worker |
+| `SYNTHESIS_ACQUIRE_TIMEOUT_SECONDS` | `5` | How long a request may wait for synthesis capacity before returning `503` |
+| `MAX_WAITING_SYNTHESIS_REQUESTS` | `2` | Extra synthesis requests allowed to wait before new requests are rejected |
 
 ### ONNX Runtime tuning
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PIPER_MAX_LOADED_VOICES` | `0` | Max voice models cached in RAM (`0` = load fresh each request) |
+| `PIPER_MAX_LOADED_VOICES` | `1` | Max voice models cached in RAM (`0` = load fresh each request) |
 | `PIPER_INTRA_OP_THREADS` | `1` | Threads within a single ONNX operator |
 | `PIPER_INTER_OP_THREADS` | `1` | Threads across independent ONNX operators |
 | `PIPER_EXECUTION_MODE` | `sequential` | `sequential` or `parallel` |

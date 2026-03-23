@@ -25,7 +25,7 @@ class AppDefaults:
     length_scale: float | None = None
     noise_scale: float | None = None
     noise_w_scale: float | None = None
-    max_loaded_voices: int = env_int("PIPER_MAX_LOADED_VOICES", 0)
+    max_loaded_voices: int = env_int("PIPER_MAX_LOADED_VOICES", 1)
     intra_op_threads: int = env_int("PIPER_INTRA_OP_THREADS", 1)
     inter_op_threads: int = env_int("PIPER_INTER_OP_THREADS", 1)
     enable_cpu_mem_arena: bool = env_bool("PIPER_ENABLE_CPU_MEM_ARENA", True)
@@ -45,6 +45,9 @@ class ServerDefaults:
     use_colors: bool = env_bool("USE_COLORS", True)
     limit_concurrency: int = env_int("LIMIT_CONCURRENCY", 10)
     timeout_keep_alive: int = env_int("TIMEOUT_KEEP_ALIVE", 30)
+    synthesis_concurrency: int = env_int("SYNTHESIS_CONCURRENCY", 1)
+    synthesis_acquire_timeout_seconds: float = float(os.getenv("SYNTHESIS_ACQUIRE_TIMEOUT_SECONDS", "5"))
+    max_waiting_synthesis_requests: int = env_int("MAX_WAITING_SYNTHESIS_REQUESTS", 2)
 
 
 app_defaults = AppDefaults()

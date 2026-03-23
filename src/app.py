@@ -12,7 +12,7 @@ from starlette.responses import JSONResponse
 
 from src.api.routes import build_routes
 from src.cli.args import build_app_arg_parser, build_uvicorn_arg_parser
-from src.core.context import AppContext
+from src.core.context import AppContext, SynthesisCapacity
 from src.core.session import build_session_options
 from src.managers.voices.loader import resolve_model_path
 from src.managers.voices.manager import VoiceManager
@@ -67,7 +67,11 @@ def create_app_from_args(args: argparse.Namespace) -> Starlette:
         args=args,
         data_dirs=data_dirs,
         voice_manager=voice_manager,
-        synthesis_semaphore=asyncio.Semaphore(1),
+        synthesis_capacity=SynthesisCapacity(
+            limit=args.synthesis_concurrency,
+            acquire_timeout_seconds=args.synthesis_acquire_timeout_seconds,
+            max_waiters=args.max_waiting_synthesis_requests,
+        ),
     )
 
     return Starlette(
