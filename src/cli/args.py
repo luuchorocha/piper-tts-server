@@ -39,6 +39,22 @@ def build_app_arg_parser(*, add_help: bool = True) -> ArgumentParser:
     )
     parser.add_argument("--cuda", action=argparse.BooleanOptionalAction, default=app_defaults.cuda)
     parser.add_argument(
+        "--alignment-method",
+        choices=["silence", "forced_ctc"],
+        default=app_defaults.alignment_method,
+    )
+    parser.add_argument(
+        "--forced-aligner-bundle",
+        default=app_defaults.forced_aligner_bundle,
+        help="Torchaudio bundle name for the forced CTC aligner.",
+    )
+    parser.add_argument(
+        "--forced-aligner-min-word-score",
+        type=float,
+        default=app_defaults.forced_aligner_min_word_score,
+        help="Reject alignments when any aligned word score falls below this threshold.",
+    )
+    parser.add_argument(
         "--sentence-silence",
         "--sentence_silence",
         dest="sentence_silence",

@@ -16,6 +16,7 @@ from src.core.context import AppContext, SynthesisCapacity
 from src.core.session import build_session_options
 from src.managers.voices.loader import resolve_model_path
 from src.managers.voices.manager import VoiceManager
+from src.services.alignment.service import build_alignment_engine
 
 LOGGER = logging.getLogger(__name__)
 
@@ -72,6 +73,7 @@ def create_app_from_args(args: argparse.Namespace) -> Starlette:
             acquire_timeout_seconds=args.synthesis_acquire_timeout_seconds,
             max_waiters=args.max_waiting_synthesis_requests,
         ),
+        alignment_engine=build_alignment_engine(args),
     )
 
     return Starlette(

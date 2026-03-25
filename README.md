@@ -70,6 +70,13 @@ Only `text` is required. `speaker` is a named speaker string for multi-speaker v
 
 Alignment data enables audio-to-text synchronization for lip-sync, karaoke, subtitles, etc.
 
+The server currently supports two alignment modes:
+
+- `silence`: the existing energy-based heuristic aligner
+- `forced_ctc`: an English-first torchaudio CTC forced aligner, enabled with `ALIGNMENT_METHOD=forced_ctc`
+
+When alignments are requested, the JSON payload now also includes `alignment_mode` so consumers can tell which engine produced the timestamps.
+
 ### GET `/playroom`
 
 Serves a simple browser testing page with:

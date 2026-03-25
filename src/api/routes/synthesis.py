@@ -61,6 +61,7 @@ def build_synthesis_handler(
                     voice=voice,
                     request_data=synthesis_request,
                     args=context.args,
+                    alignment_engine=context.alignment_engine,
                     include_alignments=synthesis_request.include_alignments,
                 )
             finally:
@@ -102,6 +103,7 @@ def build_synthesis_handler(
             return JSONResponse({
                 "audio_base64": base64.b64encode(result.wav_bytes).decode("ascii"),
                 "sample_rate": result.sample_rate,
+                "alignment_mode": result.alignment_mode,
                 "alignment_supported": result.alignment_supported,
                 "alignment_error": result.alignment_error,
                 "alignments": result.alignment.to_dict(),

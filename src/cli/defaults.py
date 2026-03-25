@@ -18,6 +18,9 @@ def _default_data_dirs() -> list[str]:
 class AppDefaults:
     model: str = os.getenv("VOICE", "en_US-lessac-medium")
     cuda: bool = False
+    alignment_method: str = os.getenv("ALIGNMENT_METHOD", "silence")
+    forced_aligner_bundle: str = os.getenv("FORCED_ALIGNER_BUNDLE", "WAV2VEC2_ASR_BASE_960H")
+    forced_aligner_min_word_score: float = float(os.getenv("FORCED_ALIGNER_MIN_WORD_SCORE", "0.0"))
     data_dir: list[str] = field(default_factory=_default_data_dirs)
     download_dir: str | None = os.getenv("DOWNLOAD_DIR")
     speaker: int | None = None

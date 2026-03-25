@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List
 
+from src.services.alignment.service import AlignmentEngine
 from src.managers.voices.manager import VoiceManager
 
 
@@ -98,3 +99,4 @@ class AppContext:
     data_dirs: List[Path]
     voice_manager: VoiceManager
     synthesis_capacity: SynthesisCapacity
+    alignment_engine: AlignmentEngine

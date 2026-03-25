@@ -396,6 +396,7 @@
 
       let audioBlob;
       let wordAlignments = null;
+      let alignmentStatusSet = false;
       if (payload.include_alignments) {
         const alignedPayload = await response.json();
         if (!alignedPayload || !alignedPayload.audio_base64) {
@@ -409,13 +410,17 @@
 
         if (alignedPayload.alignment_supported === false && alignedPayload.alignment_error) {
           setStatus(`Audio generated (alignment warning: ${alignedPayload.alignment_error})`, "warning");
+          alignmentStatusSet = true;
+        } else if (alignedPayload.alignment_mode) {
+          setStatus(`Audio generated with ${alignedPayload.alignment_mode} alignment.`, "success");
+          alignmentStatusSet = true;
         }
       } else {
         audioBlob = await response.blob();
       }
 
       addHistoryRow(payload, audioBlob, wordAlignments);
-      if (!(payload.include_alignments && statusNode.dataset.tone === "warning")) {
+      if (!(payload.include_alignments && alignmentStatusSet)) {
         setStatus("Audio generated.", "success");
       }
     } catch (error) {

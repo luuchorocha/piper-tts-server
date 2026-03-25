@@ -10,7 +10,8 @@ from piper import PiperVoice, SynthesisConfig
 from src.parsers.synthesis.request import SynthesisRequest
 from src.services.alignment import (
     AlignmentResult,
-    align_from_silence_and_grammar,
+    AlignmentError,
+    AlignmentEngine,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -68,6 +69,7 @@ class SynthesisResult:
     alignment: Optional[AlignmentResult] = None
     alignment_supported: bool = True
     alignment_error: Optional[str] = None
+    alignment_mode: Optional[str] = None
 
 
 def synthesize_text(
@@ -75,6 +77,7 @@ def synthesize_text(
     voice: PiperVoice,
     request_data: SynthesisRequest,
     args: argparse.Namespace,
+    alignment_engine: AlignmentEngine,
     include_alignments: bool = False,
 ) -> SynthesisResult:
     speaker_id = _resolve_speaker_id(
@@ -158,25 +161,33 @@ def synthesize_text(
     alignment = None
     alignment_supported = True
     alignment_error: Optional[str] = None
+    alignment_mode: Optional[str] = None
     if include_alignments:
+        alignment_mode = alignment_engine.mode
         if sample_width != 2:
             alignment_supported = False
-            alignment_error = "Silence aligner supports 16-bit PCM audio only"
+            alignment_error = "Alignment engine supports 16-bit PCM audio only"
             alignment = AlignmentResult(sample_rate=sample_rate)
         else:
             with wave.open(io.BytesIO(wav_bytes), "rb") as wav_reader:
                 pcm_bytes = wav_reader.readframes(wav_reader.getnframes())
 
-            alignment = align_from_silence_and_grammar(
-                text=request_data.text,
-                grammar=request_data.grammar,
-                pcm_bytes=pcm_bytes,
-                sample_rate=sample_rate,
-                channels=sample_channels,
-            )
-            if not alignment.words:
+            try:
+                alignment = alignment_engine.align(
+                    text=request_data.text,
+                    grammar=request_data.grammar,
+                    pcm_bytes=pcm_bytes,
+                    sample_rate=sample_rate,
+                    channels=sample_channels,
+                )
+            except AlignmentError as exc:
                 alignment_supported = False
-                alignment_error = "Could not detect speech regions for grammar alignment"
+                alignment_error = str(exc)
+                alignment = AlignmentResult(sample_rate=sample_rate)
+
+            if alignment_supported and not alignment.words:
+                alignment_supported = False
+                alignment_error = "Alignment engine returned no words"
 
     return SynthesisResult(
         wav_bytes=wav_bytes,
@@ -184,4 +195,5 @@ def synthesize_text(
         alignment=alignment,
         alignment_supported=(alignment_supported and bool(alignment and alignment.words or not include_alignments)),
         alignment_error=alignment_error,
+        alignment_mode=alignment_mode,
     )

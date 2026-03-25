@@ -487,6 +487,7 @@ def build_openapi_schema() -> dict:
                     "properties": {
                         "audio_base64": {"type": "string", "format": "byte"},
                         "sample_rate": {"type": "integer"},
+                        "alignment_mode": {"type": "string"},
                         "alignment_supported": {"type": "boolean"},
                         "alignment_error": {"type": "string"},
                         "alignments": _schema_ref("AlignmentResult"),
