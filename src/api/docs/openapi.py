@@ -153,14 +153,14 @@ def _synthesis_responses(*, default_json: bool) -> dict:
 
     if default_json:
         responses["200"] = {
-            "description": "Base64 WAV audio with phoneme and approximate word timestamps.",
+            "description": "Base64 WAV audio with alignment metadata and word timestamps. In the default forced_ctc path, phonemes may be empty.",
             "content": {
                 "application/json": {"schema": _schema_ref("TimestampResponse")}
             },
         }
     else:
         responses["200"] = {
-            "description": "Raw WAV audio by default, or JSON timestamps when include_alignments=true.",
+            "description": "Raw WAV audio by default, or JSON alignment metadata plus timestamps when include_alignments=true.",
             "content": {
                 "audio/wav": {
                     "schema": {
@@ -212,14 +212,14 @@ def build_openapi_schema() -> dict:
                 "get": {
                     "tags": ["synthesis"],
                     "summary": "Synthesize speech",
-                    "description": "Returns raw WAV by default. Set include_alignments=true to receive JSON with timestamps.",
+                    "description": "Returns raw WAV by default. Set include_alignments=true to receive JSON with alignment metadata and timestamps.",
                     "parameters": _synthesis_parameters(include_alignments=True),
                     "responses": _synthesis_responses(default_json=False),
                 },
                 "post": {
                     "tags": ["synthesis"],
                     "summary": "Synthesize speech",
-                    "description": "Returns raw WAV by default. Set include_alignments=true to receive JSON with timestamps.",
+                    "description": "Returns raw WAV by default. Set include_alignments=true to receive JSON with alignment metadata and timestamps.",
                     "requestBody": _synthesis_request_body(include_alignments=True),
                     "responses": _synthesis_responses(default_json=False),
                 },
@@ -228,14 +228,14 @@ def build_openapi_schema() -> dict:
                 "get": {
                     "tags": ["synthesis"],
                     "summary": "Synthesize speech with timestamps",
-                    "description": "Always returns JSON with base64 WAV audio and alignment timestamps.",
+                    "description": "Always returns JSON with base64 WAV audio, alignment metadata, and timestamps. The default engine is forced_ctc.",
                     "parameters": _synthesis_parameters(include_alignments=False),
                     "responses": _synthesis_responses(default_json=True),
                 },
                 "post": {
                     "tags": ["synthesis"],
                     "summary": "Synthesize speech with timestamps",
-                    "description": "Always returns JSON with base64 WAV audio and alignment timestamps.",
+                    "description": "Always returns JSON with base64 WAV audio, alignment metadata, and timestamps. The default engine is forced_ctc.",
                     "requestBody": _synthesis_request_body(include_alignments=False),
                     "responses": _synthesis_responses(default_json=True),
                 },
@@ -468,10 +468,12 @@ def build_openapi_schema() -> dict:
                     "properties": {
                         "phonemes": {
                             "type": "array",
+                            "description": "Phoneme-level timestamps when available. The current forced_ctc implementation returns an empty array.",
                             "items": _schema_ref("PhonemeTimestamp"),
                         },
                         "words": {
                             "type": "array",
+                            "description": "Word-level timestamps aligned to the synthesized waveform.",
                             "items": _schema_ref("WordTimestamp"),
                         },
                     },
@@ -487,9 +489,15 @@ def build_openapi_schema() -> dict:
                     "properties": {
                         "audio_base64": {"type": "string", "format": "byte"},
                         "sample_rate": {"type": "integer"},
-                        "alignment_mode": {"type": "string"},
+                        "alignment_mode": {
+                            "type": "string",
+                            "description": "Alignment engine used for this response, for example forced_ctc or silence.",
+                        },
                         "alignment_supported": {"type": "boolean"},
-                        "alignment_error": {"type": "string"},
+                        "alignment_error": {
+                            "type": "string",
+                            "description": "Human-readable reason when the requested alignment could not be produced.",
+                        },
                         "alignments": _schema_ref("AlignmentResult"),
                     },
                 },

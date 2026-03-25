@@ -53,7 +53,7 @@ class SilenceGrammarAlignmentEngine:
 
 
 def build_alignment_engine(args: argparse.Namespace) -> AlignmentEngine:
-    method = getattr(args, "alignment_method", "silence")
+    method = getattr(args, "alignment_method", "forced_ctc")
     if method == "forced_ctc":
         from src.services.alignment.forced_ctc import ForcedCtcAlignmentEngine
 

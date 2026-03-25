@@ -155,6 +155,10 @@ class VoiceManager:
             LOGGER.info("Releasing cached voice: %s", model_id)
             self._release_voice(voice)
 
+    def offload(self, model_id: str) -> None:
+        """Evict a voice from the cache to free memory. Re-loaded on next use."""
+        self._discard_cached_voice(model_id)
+
     @classmethod
     def release_ephemeral(cls, voice: PiperVoice) -> None:
         cls._release_voice(voice)

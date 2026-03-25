@@ -3,7 +3,7 @@ import io
 import logging
 import wave
 from dataclasses import dataclass
-from typing import Optional
+from typing import Callable, Optional
 
 from piper import PiperVoice, SynthesisConfig
 
@@ -79,6 +79,7 @@ def synthesize_text(
     args: argparse.Namespace,
     alignment_engine: AlignmentEngine,
     include_alignments: bool = False,
+    on_synthesis_complete: Optional[Callable[[], None]] = None,
 ) -> SynthesisResult:
     speaker_id = _resolve_speaker_id(
         voice=voice,
@@ -156,6 +157,12 @@ def synthesize_text(
             time_offset += chunk_duration
 
     wav_bytes = buffer.getvalue()
+    buffer.close()
+
+    # Notify caller that synthesis is done — voice model can be offloaded
+    # before the alignment model is loaded.
+    if on_synthesis_complete is not None:
+        on_synthesis_complete()
 
     # Build alignment result if requested
     alignment = None

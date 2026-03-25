@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from array import array
 from dataclasses import dataclass, field
 from typing import Any, Sequence
 
@@ -188,17 +187,16 @@ class ForcedCtcAlignmentEngine:
         return model
 
     def _pcm_bytes_to_waveform(self, *, torch, torchaudio, pcm_bytes: bytes, sample_rate: int, channels: int, target_sample_rate: int):
-        samples = array("h")
-        samples.frombytes(pcm_bytes)
-        if not samples:
+        if not pcm_bytes:
             raise AlignmentError("Forced aligner received empty PCM audio")
 
-        if channels > 1:
-            mono = [samples[index] for index in range(0, len(samples), channels)]
-        else:
-            mono = list(samples)
+        waveform = torch.frombuffer(pcm_bytes, dtype=torch.int16).to(torch.float32) / 32768.0
 
-        waveform = torch.tensor(mono, dtype=torch.float32).unsqueeze(0) / 32768.0
+        if channels > 1:
+            waveform = waveform[::channels]
+
+        waveform = waveform.unsqueeze(0)
+
         if sample_rate != target_sample_rate:
             waveform = torchaudio.functional.resample(waveform, sample_rate, target_sample_rate)
 

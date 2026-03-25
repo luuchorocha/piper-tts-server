@@ -45,17 +45,14 @@ def _parse_grammar_phrases(grammar: Sequence[str] | None, fallback_text: str) ->
     return phrases or _default_grammar_phrases(fallback_text)
 
 
-def _pcm_to_mono_samples(pcm_bytes: bytes, channels: int) -> list[int]:
+def _pcm_to_mono_samples(pcm_bytes: bytes, channels: int) -> array:
     samples = array("h")
     samples.frombytes(pcm_bytes)
 
     if channels <= 1:
-        return list(samples)
+        return samples
 
-    mono: list[int] = []
-    for i in range(0, len(samples), channels):
-        mono.append(samples[i])
-    return mono
+    return array("h", samples[::channels])
 
 
 def _detect_speech_regions(

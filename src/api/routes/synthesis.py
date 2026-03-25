@@ -56,6 +56,19 @@ def build_synthesis_handler(
 
         def _do_synthesis() -> SynthesisResult:
             voice, ephemeral = context.voice_manager.get(synthesis_request.requested_voice)
+            voice_offloaded = False
+
+            def _offload_voice() -> None:
+                nonlocal voice_offloaded
+                if voice_offloaded:
+                    return
+                voice_offloaded = True
+                if ephemeral:
+                    context.voice_manager.release_ephemeral(voice)
+                else:
+                    model_id = synthesis_request.requested_voice or context.voice_manager.default_model_id
+                    context.voice_manager.offload(model_id)
+
             try:
                 return synthesize_text(
                     voice=voice,
@@ -63,9 +76,10 @@ def build_synthesis_handler(
                     args=context.args,
                     alignment_engine=context.alignment_engine,
                     include_alignments=synthesis_request.include_alignments,
+                    on_synthesis_complete=_offload_voice if synthesis_request.include_alignments else None,
                 )
             finally:
-                if ephemeral:
+                if ephemeral and not voice_offloaded:
                     context.voice_manager.release_ephemeral(voice)
 
         try:

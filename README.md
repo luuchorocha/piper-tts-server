@@ -55,14 +55,15 @@ Only `text` is required. `speaker` is a named speaker string for multi-speaker v
 ```json
 {
   "audio_base64": "<base64-encoded WAV>",
-  "sample_rate": 22050,
+  "sample_rate": 16000,
+  "alignment_mode": "forced_ctc",
+  "alignment_supported": true,
+  "alignment_error": null,
   "alignments": {
-    "phonemes": [
-      {"phoneme": "h", "start": 0.0, "end": 0.05},
-      {"phoneme": "ɛ", "start": 0.05, "end": 0.12}
-    ],
+    "phonemes": [],
     "words": [
-      {"word": "hello", "start": 0.0, "end": 0.35, "phoneme_indices": [0, 1, 2, 3, 4]}
+      {"word": "Hello", "start": 0.0605, "end": 0.343, "phoneme_indices": []},
+      {"word": "world", "start": 0.3833, "end": 0.7666, "phoneme_indices": []}
     ]
   }
 }
@@ -72,10 +73,18 @@ Alignment data enables audio-to-text synchronization for lip-sync, karaoke, subt
 
 The server currently supports two alignment modes:
 
-- `silence`: the existing energy-based heuristic aligner
-- `forced_ctc`: an English-first torchaudio CTC forced aligner, enabled with `ALIGNMENT_METHOD=forced_ctc`
+- `forced_ctc`: the default English-first torchaudio CTC forced aligner
+- `silence`: the legacy energy-based heuristic aligner, available via `ALIGNMENT_METHOD=silence`
 
-When alignments are requested, the JSON payload now also includes `alignment_mode` so consumers can tell which engine produced the timestamps.
+When alignments are requested, the JSON payload includes `alignment_mode`, `alignment_supported`, and `alignment_error` so consumers can tell which engine ran and whether alignment succeeded.
+
+Current forced CTC notes:
+
+- `forced_ctc` is the default alignment engine.
+- The current implementation is English-first and normalizes tokens to an ASCII-ish uppercase transcript for alignment.
+- The current `forced_ctc` response populates `words` and leaves `phonemes` empty.
+- The first request using a new torchaudio bundle may download the acoustic model checkpoint into the local torch cache, which can add startup latency.
+- If forced alignment fails, the Piper response still returns audio but sets `alignment_supported=false` and includes a human-readable `alignment_error`.
 
 ### GET `/playroom`
 
@@ -158,6 +167,16 @@ curl -s http://localhost:5000/ \
   -d '{"text": "The quick brown fox jumps over the lazy dog."}' \
   --output output.wav
 ```
+
+### Test timestamps
+
+```sh
+curl -s http://localhost:5000/timestamps \
+  -H 'Content-Type: application/json' \
+  -d '{"text": "Hello world", "voice": "en_US-lessac-low"}'
+```
+
+The default response path uses `forced_ctc`. To compare against the legacy heuristic aligner locally, start the server with `ALIGNMENT_METHOD=silence`.
 
 ## Docker
 
