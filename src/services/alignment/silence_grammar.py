@@ -74,12 +74,16 @@ def _detect_speech_regions(
     min_silence_windows = max(1, int(min_silence_ms / window_ms))
 
     energies: list[float] = []
-    for i in range(0, len(mono), window_size):
-        window = mono[i : i + window_size]
-        if not window:
+    mono_len = len(mono)
+    for i in range(0, mono_len, window_size):
+        end = min(i + window_size, mono_len)
+        if i >= end:
             break
-        energy = sum(abs(v) for v in window) / len(window)
-        energies.append(energy)
+        total = 0
+        for j in range(i, end):
+            v = mono[j]
+            total += v if v >= 0 else -v
+        energies.append(total / (end - i))
 
     regions: list[_Region] = []
     in_speech = False

@@ -34,7 +34,6 @@ class WordTimestamp:
             "word": self.word,
             "start": round(self.start, 4),
             "end": round(self.end, 4),
-            "phoneme_indices": list(self.phoneme_indices),
         }
 
 
@@ -48,7 +47,6 @@ class AlignmentResult:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "phonemes": [p.to_dict() for p in self.phonemes],
             "words": [w.to_dict() for w in self.words],
         }
 

@@ -153,7 +153,7 @@ def _synthesis_responses(*, default_json: bool) -> dict:
 
     if default_json:
         responses["200"] = {
-            "description": "Base64 WAV audio with alignment metadata and word timestamps. In the default forced_ctc path, phonemes may be empty.",
+            "description": "Base64 WAV audio with alignment metadata and word timestamps.",
             "content": {
                 "application/json": {"schema": _schema_ref("TimestampResponse")}
             },
@@ -440,37 +440,19 @@ def build_openapi_schema() -> dict:
                         },
                     },
                 },
-                "PhonemeTimestamp": {
-                    "type": "object",
-                    "required": ["phoneme", "start", "end"],
-                    "properties": {
-                        "phoneme": {"type": "string"},
-                        "start": {"type": "number"},
-                        "end": {"type": "number"},
-                    },
-                },
                 "WordTimestamp": {
                     "type": "object",
-                    "required": ["word", "start", "end", "phoneme_indices"],
+                    "required": ["word", "start", "end"],
                     "properties": {
                         "word": {"type": "string"},
                         "start": {"type": "number"},
                         "end": {"type": "number"},
-                        "phoneme_indices": {
-                            "type": "array",
-                            "items": {"type": "integer"},
-                        },
                     },
                 },
                 "AlignmentResult": {
                     "type": "object",
-                    "required": ["phonemes", "words"],
+                    "required": ["words"],
                     "properties": {
-                        "phonemes": {
-                            "type": "array",
-                            "description": "Phoneme-level timestamps when available. The current forced_ctc implementation returns an empty array.",
-                            "items": _schema_ref("PhonemeTimestamp"),
-                        },
                         "words": {
                             "type": "array",
                             "description": "Word-level timestamps aligned to the synthesized waveform.",

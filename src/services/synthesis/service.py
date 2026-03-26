@@ -191,6 +191,8 @@ def synthesize_text(
                 alignment_supported = False
                 alignment_error = str(exc)
                 alignment = AlignmentResult(sample_rate=sample_rate)
+            finally:
+                del pcm_bytes
 
             if alignment_supported and not alignment.words:
                 alignment_supported = False

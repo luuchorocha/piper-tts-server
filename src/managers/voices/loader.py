@@ -55,7 +55,6 @@ def load_voice(
 def unload_voice(voice: PiperVoice) -> None:
     try:
         del voice.session
-        del voice
     except AttributeError:
         pass
     finally:

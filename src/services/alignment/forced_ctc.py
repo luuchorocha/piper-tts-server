@@ -88,9 +88,14 @@ class ForcedCtcAlignmentEngine:
             emissions, _ = model(waveform)
 
         emission = torch.log_softmax(emissions[0], dim=-1).cpu()
+        del emissions
+
         blank_id = dictionary.get("-", 0)
         trellis = self._get_trellis(torch, emission, tokens, blank_id)
         path = self._backtrack(torch, trellis, emission, tokens, blank_id)
+        num_emission_frames = emission.shape[0]
+        del trellis, emission
+
         if not path:
             raise AlignmentError("Forced aligner could not find an alignment path for the transcript")
 
@@ -101,7 +106,7 @@ class ForcedCtcAlignmentEngine:
                 "Forced aligner produced a different number of aligned words than the normalized transcript"
             )
 
-        seconds_per_frame = waveform.shape[1] / bundle.sample_rate / max(1, emission.shape[0])
+        seconds_per_frame = waveform.shape[1] / bundle.sample_rate / max(1, num_emission_frames)
         words: list[WordTimestamp] = []
         for index, ((original_word, _), segment) in enumerate(zip(transcript_words, word_segments)):
             if segment.score < self.min_word_score:
@@ -190,7 +195,7 @@ class ForcedCtcAlignmentEngine:
         if not pcm_bytes:
             raise AlignmentError("Forced aligner received empty PCM audio")
 
-        waveform = torch.frombuffer(pcm_bytes, dtype=torch.int16).to(torch.float32) / 32768.0
+        waveform = torch.frombuffer(bytearray(pcm_bytes), dtype=torch.int16).to(torch.float32) / 32768.0
 
         if channels > 1:
             waveform = waveform[::channels]
@@ -247,7 +252,8 @@ class ForcedCtcAlignmentEngine:
             path.append(_Point(token_index=0, time_index=time_index - 1, score=probability))
             time_index -= 1
 
-        return list(reversed(path))
+        path.reverse()
+        return path
 
     def _merge_repeats(self, path: list[_Point], transcript: str) -> list[_Segment]:
         segments: list[_Segment] = []
