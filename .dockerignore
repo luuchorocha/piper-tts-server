@@ -2,8 +2,13 @@
 .git/
 .venv/
 .vscode/
-__pycache__/
-.pytest_cache/
-test_*.py
+bin/
+tests/
+**/__pycache__/
+**/.pytest_cache/
 **/*.onnx
 **/*.onnx.json
+*.md
+*.txt.bak
+test_*.py
+Makefile

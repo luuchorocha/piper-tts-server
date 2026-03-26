@@ -6,7 +6,9 @@ ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 COPY requirements.txt /tmp/requirements.txt
 
 RUN python -m venv "${VIRTUAL_ENV}" && \
-  pip install --no-cache-dir --no-compile -r /tmp/requirements.txt && \
+  pip install --no-cache-dir --no-compile \
+    --extra-index-url https://download.pytorch.org/whl/cpu \
+    -r /tmp/requirements.txt && \
   rm /tmp/requirements.txt && \
   find "${VIRTUAL_ENV}" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
