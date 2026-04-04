@@ -3,30 +3,25 @@
 set -e
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+. "$ROOT_DIR/bin/common"
 VENV_DIR=$ROOT_DIR/.venv
-
-show_help() {
-    printf '%s\n' 'Usage: bin/env [OPTIONS]'
-    printf '%s\n' ''
-    printf '%s\n' 'Create or update the local Python virtual environment and install requirements.'
-    printf '%s\n' ''
-    printf '%s\n' 'Options:'
-    printf '%s\n' '  -h, --help  Show this help message and exit'
-}
 
 case ${1-} in
     -h|--help)
-        show_help
+        show_script_help \
+            'bin/env' \
+            ' [OPTIONS]' \
+            'Create or update the local Python virtual environment and install requirements.'
         return 0 2>/dev/null || exit 0
         ;;
 esac
 
-if ! PYTHON_EXECUTABLE=$(command -v python3); then
+if ! PYTHON_BIN=$(command -v python3); then
     printf '%s\n' 'Python 3 is not installed. Please install Python 3 to run this application.' >&2
     return 1 2>/dev/null || exit 1
 fi
 
-"$PYTHON_EXECUTABLE" -m venv "$VENV_DIR"
+"$PYTHON_BIN" -m venv "$VENV_DIR"
 
 PATH=$VENV_DIR/bin:$PATH
 VIRTUAL_ENV=$VENV_DIR

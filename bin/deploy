@@ -8,19 +8,20 @@ APP_NAME=${HEROKU_APP_NAME:-story-maker-piper}
 . "$ROOT_DIR/bin/common"
 
 case ${1-} in
-	-h|--help)
-		show_script_help \
-			'bin/deploy' \
-			'Build and release the Piper container to Heroku Container Registry. Set HEROKU_APP_NAME to target a different app.'
-		exit 0
-		;;
+    -h|--help)
+        show_script_help \
+            'bin/deploy' \
+            ' [OPTIONS]' \
+            'Build and release the Piper container to Heroku Container Registry. Set HEROKU_APP_NAME to target a different app.'
+        exit 0
+        ;;
 esac
 
 cd "$ROOT_DIR"
 
 if [ ! -f ./main.py ]; then
-	printf '%s\n' 'Error: Missing source code (expected ./main.py)' >&2
-	exit 1
+    printf '%s\n' 'Error: Missing source code (expected ./main.py)' >&2
+    exit 1
 fi
 
 printf '%s\n' ">>>> Authenticating in Heroku Container Registry for $APP_NAME..."
