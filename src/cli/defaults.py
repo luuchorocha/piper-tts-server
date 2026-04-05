@@ -42,7 +42,7 @@ class ServerDefaults:
     host: str = "0.0.0.0"
     port: int = env_int("PORT", 5000)
     log_level: str = os.getenv("LOG_LEVEL", "warning")
-    access_log: bool = env_bool("ACCESS_LOG", False)
+    access_log: bool = env_bool("ACCESS_LOG", True)
     reload: bool = env_bool("RELOAD", False)
     workers: int = env_int("WEB_CONCURRENCY", 1)
     use_colors: bool = env_bool("USE_COLORS", True)
