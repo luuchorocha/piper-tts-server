@@ -5,6 +5,7 @@ from src.services.alignment.models import (
     phoneme_alignments_to_timestamps,
 )
 from src.services.alignment.forced_ctc import ForcedCtcAlignmentEngine
+from src.services.alignment.piper_native import align_from_piper_phonemes
 from src.services.alignment.service import (
     AlignmentEngine,
     AlignmentError,
@@ -24,6 +25,7 @@ __all__ = [
     "PhonemeTimestamp",
     "SilenceGrammarAlignmentEngine",
     "WordTimestamp",
+    "align_from_piper_phonemes",
     "align_from_silence_and_grammar",
     "build_alignment_engine",
     "group_phonemes_into_words",

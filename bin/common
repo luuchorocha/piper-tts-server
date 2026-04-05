@@ -14,14 +14,19 @@ show_script_help() {
 }
 
 print_server_banner() {
-    printf '%s\n' 'Server listening on http://127.0.0.1:5000'
-    printf '%s\n' 'GET      /docs         Open interactive Swagger UI docs with Try it out'
-    printf '%s\n' 'GET      /openapi.json OpenAPI schema for the HTTP API'
-    printf '%s\n' 'GET|POST /             Synthesize text into WAV audio or alignment JSON'
-    printf '%s\n' 'GET|POST /timestamps   Synthesize text and always return timestamp JSON'
-    printf '%s\n' 'GET      /health       Report server readiness'
-    printf '%s\n' 'GET      /voices       List voices available locally'
-    printf '%s\n' 'GET      /all-voices   List the full remote voice catalog'
-    printf '%s\n' 'GET      /playroom     Open the browser playground UI'
-    printf '%s\n' 'GET|POST /download     Download a voice by id'
+    local HOST=`hostname -I | awk '{print $1}'`
+    local PORT=5000
+    local PROTOCOL=http
+    local URL="$PROTOCOL://$HOST:$PORT"
+
+    printf '%s\n' "Server listening on $URL"
+    printf '%s\n' "GET            $URL/docs             Open interactive Swagger UI docs with Try it out"
+    printf '%s\n' "GET            $URL/openapi.json     OpenAPI schema for the HTTP API"
+    printf '%s\n' "GET|POST       $URL/                 Synthesize text into WAV audio or alignment JSON"
+    printf '%s\n' "GET|POST       $URL/timestamps       Synthesize text and always return timestamp JSON"
+    printf '%s\n' "GET            $URL/health           Report server readiness"
+    printf '%s\n' "GET            $URL/voices           List voices available locally"
+    printf '%s\n' "GET            $URL/all-voices       List the full remote voice catalog"
+    printf '%s\n' "GET            $URL/playroom         Open the browser playground UI"
+    printf '%s\n' "GET|POST       $URL/download         Download a voice by id"
 }

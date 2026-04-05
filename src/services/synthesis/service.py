@@ -13,6 +13,7 @@ from src.services.alignment import (
     AlignmentError,
     AlignmentEngine,
 )
+from src.services.alignment.piper_native import align_from_piper_phonemes
 
 LOGGER = logging.getLogger(__name__)
 
@@ -119,13 +120,16 @@ def synthesize_text(
     sample_channels = 1
     sample_width = 2
 
+    # Collect Piper-native phoneme alignment data when available.
+    chunk_alignment_data: list[tuple[list, int, float]] = []
+
     with wave.open(buffer, "wb") as wav_file:
         params_set = False
         for index, chunk in enumerate(
             voice.synthesize(
                 request_data.text,
                 synthesis_config,
-                include_alignments=False,
+                include_alignments=include_alignments,
             )
         ):
             if not params_set:
@@ -148,6 +152,9 @@ def synthesize_text(
                 wav_file.writeframes(bytes(silence_samples))
                 time_offset += request_data.sentence_silence
 
+            # Capture chunk start time before writing audio
+            chunk_start_time = time_offset
+
             wav_file.writeframes(chunk.audio_int16_bytes)
 
             # Update time offset for next chunk
@@ -156,47 +163,73 @@ def synthesize_text(
             )
             time_offset += chunk_duration
 
+            if include_alignments and chunk.phoneme_alignments:
+                chunk_alignment_data.append(
+                    (chunk.phoneme_alignments, chunk.sample_rate, chunk_start_time)
+                )
+
     wav_bytes = buffer.getvalue()
     buffer.close()
-
-    # Notify caller that synthesis is done — voice model can be offloaded
-    # before the alignment model is loaded.
-    if on_synthesis_complete is not None:
-        on_synthesis_complete()
 
     # Build alignment result if requested
     alignment = None
     alignment_supported = True
     alignment_error: Optional[str] = None
     alignment_mode: Optional[str] = None
+
     if include_alignments:
-        alignment_mode = alignment_engine.mode
-        if sample_width != 2:
-            alignment_supported = False
-            alignment_error = "Alignment engine supports 16-bit PCM audio only"
-            alignment = AlignmentResult(sample_rate=sample_rate)
-        else:
-            with wave.open(io.BytesIO(wav_bytes), "rb") as wav_reader:
-                pcm_bytes = wav_reader.readframes(wav_reader.getnframes())
-
+        # Try Piper native alignment first (sample-accurate, no external model)
+        if chunk_alignment_data:
             try:
-                alignment = alignment_engine.align(
+                alignment = align_from_piper_phonemes(
                     text=request_data.text,
-                    grammar=request_data.grammar,
-                    pcm_bytes=pcm_bytes,
-                    sample_rate=sample_rate,
-                    channels=sample_channels,
+                    chunk_alignments=[ca[0] for ca in chunk_alignment_data],
+                    chunk_sample_rates=[ca[1] for ca in chunk_alignment_data],
+                    chunk_time_offsets=[ca[2] for ca in chunk_alignment_data],
                 )
+                alignment_mode = "piper_native"
             except AlignmentError as exc:
-                alignment_supported = False
-                alignment_error = str(exc)
-                alignment = AlignmentResult(sample_rate=sample_rate)
-            finally:
-                del pcm_bytes
+                LOGGER.warning("Piper native alignment failed, falling back to CTC: %s", exc)
+                alignment = None
 
-            if alignment_supported and not alignment.words:
+        # Fall back to external alignment engine (CTC or silence-grammar)
+        if alignment is None:
+            # Offload voice before loading the alignment model
+            if on_synthesis_complete is not None:
+                on_synthesis_complete()
+                on_synthesis_complete = None
+
+            alignment_mode = alignment_engine.mode
+            if sample_width != 2:
                 alignment_supported = False
-                alignment_error = "Alignment engine returned no words"
+                alignment_error = "Alignment engine supports 16-bit PCM audio only"
+                alignment = AlignmentResult(sample_rate=sample_rate)
+            else:
+                with wave.open(io.BytesIO(wav_bytes), "rb") as wav_reader:
+                    pcm_bytes = wav_reader.readframes(wav_reader.getnframes())
+
+                try:
+                    alignment = alignment_engine.align(
+                        text=request_data.text,
+                        grammar=request_data.grammar,
+                        pcm_bytes=pcm_bytes,
+                        sample_rate=sample_rate,
+                        channels=sample_channels,
+                    )
+                except AlignmentError as exc:
+                    alignment_supported = False
+                    alignment_error = str(exc)
+                    alignment = AlignmentResult(sample_rate=sample_rate)
+                finally:
+                    del pcm_bytes
+
+        if alignment_supported and not alignment.words:
+            alignment_supported = False
+            alignment_error = alignment_error or "Alignment engine returned no words"
+
+    # Offload voice if not already done during fallback alignment
+    if on_synthesis_complete is not None:
+        on_synthesis_complete()
 
     return SynthesisResult(
         wav_bytes=wav_bytes,
