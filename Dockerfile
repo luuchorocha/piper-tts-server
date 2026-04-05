@@ -1,4 +1,8 @@
-FROM python:3.11-slim AS builder
+ARG PYTHON_VERSION="3.11-slim"
+
+FROM python:${PYTHON_VERSION} AS base
+
+FROM base AS builder
 
 ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
@@ -13,7 +17,7 @@ RUN python -m venv "${VIRTUAL_ENV}" && \
   find "${VIRTUAL_ENV}" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
 
-FROM python:3.11-slim AS runtime
+FROM base AS runtime
 
 ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="${VIRTUAL_ENV}/bin:${PATH}" \
@@ -56,4 +60,6 @@ WORKDIR /app
 
 EXPOSE 5000
 
-CMD ["python", "main.py"]
+ENTRYPOINT ["python"]
+
+CMD ["main.py"]
