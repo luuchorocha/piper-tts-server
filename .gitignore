@@ -1,8 +1,4 @@
-.data/
-.venv/
-.vscode/
-.git/
 **/__pycache__/
-**/*.onnx
-**/*.onnx.json
+**/.data/
+**/.venv/
 
