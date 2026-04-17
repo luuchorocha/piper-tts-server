@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Sequence
 
@@ -41,6 +42,9 @@ class ForcedCtcAlignmentEngine:
     _model: Any = field(default=None, init=False, repr=False)
     _torch: Any = field(default=None, init=False, repr=False)
     _torchaudio: Any = field(default=None, init=False, repr=False)
+    _init_lock: threading.Lock = field(
+        default_factory=threading.Lock, init=False, repr=False
+    )
 
     def align(
         self,
@@ -150,55 +154,74 @@ class ForcedCtcAlignmentEngine:
         if self._torch is not None and self._torchaudio is not None:
             return self._torch, self._torchaudio
 
-        try:
-            import torch  # type: ignore
-            import torchaudio  # type: ignore
-        except ImportError as exc:
-            raise AlignmentUnavailableError(
-                "Forced CTC alignment requires both torch and torchaudio to be installed"
-            ) from exc
+        with self._init_lock:
+            if self._torch is not None and self._torchaudio is not None:
+                return self._torch, self._torchaudio
 
-        self._torch = torch
-        self._torchaudio = torchaudio
-        return torch, torchaudio
+            try:
+                import torch  # type: ignore
+                import torchaudio  # type: ignore
+            except ImportError as exc:
+                raise AlignmentUnavailableError(
+                    "Forced CTC alignment requires both torch and torchaudio to be installed"
+                ) from exc
+
+            self._torch = torch
+            self._torchaudio = torchaudio
+            return torch, torchaudio
 
     def _load_bundle(self, torchaudio):
         if self._bundle is not None:
             return self._bundle
 
-        try:
-            bundle = getattr(torchaudio.pipelines, self.bundle_name)
-        except AttributeError as exc:
-            raise AlignmentUnavailableError(
-                f"Unknown torchaudio forced-aligner bundle: {self.bundle_name}"
-            ) from exc
+        with self._init_lock:
+            if self._bundle is not None:
+                return self._bundle
 
-        self._bundle = bundle
-        return bundle
+            try:
+                bundle = getattr(torchaudio.pipelines, self.bundle_name)
+            except AttributeError as exc:
+                raise AlignmentUnavailableError(
+                    f"Unknown torchaudio forced-aligner bundle: {self.bundle_name}"
+                ) from exc
+
+            self._bundle = bundle
+            return bundle
 
     def _load_model(self, bundle, torch):
         if self._model is not None:
             return self._model
 
-        try:
-            model = bundle.get_model().to(torch.device("cpu"))
-        except Exception as exc:  # pragma: no cover - defensive around runtime model loading
-            raise AlignmentUnavailableError(
-                f"Unable to initialize forced aligner bundle '{self.bundle_name}': {exc}"
-            ) from exc
+        with self._init_lock:
+            if self._model is not None:
+                return self._model
 
-        model.eval()
-        self._model = model
-        return model
+            try:
+                model = bundle.get_model().to(torch.device("cpu"))
+            except Exception as exc:  # pragma: no cover - defensive around runtime model loading
+                raise AlignmentUnavailableError(
+                    f"Unable to initialize forced aligner bundle '{self.bundle_name}': {exc}"
+                ) from exc
+
+            model.eval()
+            self._model = model
+            return model
 
     def _pcm_bytes_to_waveform(self, *, torch, torchaudio, pcm_bytes: bytes, sample_rate: int, channels: int, target_sample_rate: int):
         if not pcm_bytes:
             raise AlignmentError("Forced aligner received empty PCM audio")
 
-        waveform = torch.frombuffer(bytearray(pcm_bytes), dtype=torch.int16).to(torch.float32) / 32768.0
+        # torch.frombuffer needs a writable buffer; bytes is read-only, so the
+        # bytearray wrapper is unavoidable. Fuse the float32 cast and scale
+        # into a single in-place op to avoid a second full-size copy.
+        waveform = (
+            torch.frombuffer(bytearray(pcm_bytes), dtype=torch.int16)
+            .to(torch.float32)
+            .mul_(1.0 / 32768.0)
+        )
 
         if channels > 1:
-            waveform = waveform[::channels]
+            waveform = waveform[::channels].contiguous()
 
         waveform = waveform.unsqueeze(0)
 

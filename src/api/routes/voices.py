@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import threading
 import time
 from pathlib import Path
 from urllib.request import urlopen
@@ -15,6 +16,28 @@ from src.core.context import AppContext
 LOGGER = logging.getLogger(__name__)
 
 
+class LocalVoicesCache:
+    """Cache parsed voice configs keyed by ``(path, mtime)``."""
+
+    def __init__(self) -> None:
+        self._entries: dict[Path, tuple[int, dict]] = {}
+        self._lock = threading.Lock()
+
+    def load(self, path: Path) -> dict:
+        mtime = path.stat().st_mtime_ns
+        with self._lock:
+            cached = self._entries.get(path)
+            if cached is not None and cached[0] == mtime:
+                return cached[1]
+
+        with open(path, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+
+        with self._lock:
+            self._entries[path] = (mtime, data)
+        return data
+
+
 def _iter_config_paths(context: AppContext):
     if context.voice_manager.default_model_path:
         yield Path(f"{context.voice_manager.default_model_path}.json")
@@ -26,7 +49,7 @@ def _iter_config_paths(context: AppContext):
                 yield config_path
 
 
-def _load_local_voices(context: AppContext) -> dict[str, dict]:
+def _load_local_voices(context: AppContext, cache: LocalVoicesCache) -> dict[str, dict]:
     voices: dict[str, dict] = {}
 
     for config_path in _iter_config_paths(context):
@@ -34,8 +57,7 @@ def _load_local_voices(context: AppContext) -> dict[str, dict]:
         if model_id in voices:
             continue
 
-        with open(config_path, "r", encoding="utf-8") as handle:
-            voices[model_id] = json.load(handle)
+        voices[model_id] = cache.load(config_path)
 
     return voices
 
@@ -73,8 +95,10 @@ class AllVoicesCatalog:
 
 
 def build_voices_handler(context: AppContext):
+    cache = LocalVoicesCache()
+
     def voices(request: Request) -> JSONResponse:
-        return JSONResponse(_load_local_voices(context))
+        return JSONResponse(_load_local_voices(context, cache))
 
     return voices
 

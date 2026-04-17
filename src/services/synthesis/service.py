@@ -3,7 +3,7 @@ import io
 import logging
 import wave
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Optional
 
 from piper import PiperVoice, SynthesisConfig
 
@@ -80,7 +80,6 @@ def synthesize_text(
     args: argparse.Namespace,
     alignment_engine: AlignmentEngine,
     include_alignments: bool = False,
-    on_synthesis_complete: Optional[Callable[[], None]] = None,
 ) -> SynthesisResult:
     speaker_id = _resolve_speaker_id(
         voice=voice,
@@ -194,11 +193,6 @@ def synthesize_text(
 
         # Fall back to external alignment engine (CTC or silence-grammar)
         if alignment is None:
-            # Offload voice before loading the alignment model
-            if on_synthesis_complete is not None:
-                on_synthesis_complete()
-                on_synthesis_complete = None
-
             alignment_mode = alignment_engine.mode
             if sample_width != 2:
                 alignment_supported = False
@@ -226,10 +220,6 @@ def synthesize_text(
         if alignment_supported and not alignment.words:
             alignment_supported = False
             alignment_error = alignment_error or "Alignment engine returned no words"
-
-    # Offload voice if not already done during fallback alignment
-    if on_synthesis_complete is not None:
-        on_synthesis_complete()
 
     return SynthesisResult(
         wav_bytes=wav_bytes,

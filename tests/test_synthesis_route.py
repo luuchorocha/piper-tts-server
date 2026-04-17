@@ -15,14 +15,15 @@ from src.services.synthesis.service import SynthesisResult
 class _FakeVoiceManager:
     default_model_id = "en_US-lessac-low"
 
+    def __init__(self) -> None:
+        self.released: list[tuple[str, bool]] = []
+
     def get(self, requested_voice):
-        return {"voice": requested_voice}, False
+        return {"voice": requested_voice}, requested_voice or self.default_model_id, False
 
-    def offload(self, model_id):
-        del model_id
-
-    def release_ephemeral(self, voice):
+    def release(self, voice, lease_id, is_ephemeral):
         del voice
+        self.released.append((lease_id, is_ephemeral))
 
 
 class _FakeAlignmentEngine:

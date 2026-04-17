@@ -184,43 +184,5 @@ class SynthesizeTextTest(unittest.TestCase):
         self.assertTrue(result.alignment_supported)
         self.assertEqual("forced_ctc", result.alignment_mode)
 
-    def test_on_synthesis_complete_called_on_ctc_fallback(self):
-        called = []
-        synthesize_text(
-            voice=_FakeVoice(),
-            request_data=self.request,
-            args=self.args,
-            alignment_engine=_SuccessfulAlignmentEngine(),
-            include_alignments=True,
-            on_synthesis_complete=lambda: called.append(True),
-        )
-        self.assertEqual(1, len(called))
-
-    def test_on_synthesis_complete_called_on_native_alignment(self):
-        called = []
-        chunk = _FakeChunk(
-            sample_rate=16000,
-            phoneme_alignments=[
-                _FakePhonemeAlignment("^", 512),
-                _FakePhonemeAlignment("h", 512),
-                _FakePhonemeAlignment("ə", 512),
-                _FakePhonemeAlignment("l", 512),
-                _FakePhonemeAlignment("ˈ", 256),
-                _FakePhonemeAlignment("o", 512),
-                _FakePhonemeAlignment("ʊ", 512),
-                _FakePhonemeAlignment("$", 512),
-            ],
-        )
-        synthesize_text(
-            voice=_FakeVoice(chunks=[chunk]),
-            request_data=self.request,
-            args=self.args,
-            alignment_engine=_FailingAlignmentEngine(),
-            include_alignments=True,
-            on_synthesis_complete=lambda: called.append(True),
-        )
-        self.assertEqual(1, len(called))
-
-
 if __name__ == "__main__":
     unittest.main()

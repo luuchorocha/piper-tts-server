@@ -1,3 +1,5 @@
+import asyncio
+
 from src.core.context import AppContext
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -5,7 +7,9 @@ from starlette.responses import JSONResponse
 
 def build_health_handler(context: AppContext):
     async def health(request: Request) -> JSONResponse:
-        ready, error = context.voice_manager.probe_default_voice()
+        ready, error = await asyncio.to_thread(
+            context.voice_manager.probe_default_voice,
+        )
         capacity = await context.synthesis_capacity.snapshot()
         overloaded = capacity.overloaded or (capacity.in_flight >= capacity.limit and capacity.waiting > 0)
 

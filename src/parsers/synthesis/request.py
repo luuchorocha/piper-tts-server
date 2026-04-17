@@ -8,7 +8,16 @@ from src.core.constants import (
     DEFAULT_NORMALIZE_AUDIO,
     DEFAULT_SENTENCE_SILENCE,
     DEFAULT_VOLUME,
+    MAX_LENGTH_SCALE,
+    MAX_NOISE_SCALE,
+    MAX_NOISE_W_SCALE,
+    MAX_SENTENCE_SILENCE,
     MAX_TEXT_LENGTH,
+    MAX_VOLUME,
+    MIN_LENGTH_SCALE,
+    MIN_NOISE_SCALE,
+    MIN_NOISE_W_SCALE,
+    MIN_VOLUME,
     VOICE_ID_RE,
 )
 from src.parsers.common import parse_bool
@@ -66,6 +75,7 @@ def parse_float(
     field_name: str,
     default: float,
     min_value: Optional[float] = None,
+    max_value: Optional[float] = None,
 ) -> float:
     if value is None or value == "":
         parsed = default
@@ -79,6 +89,9 @@ def parse_float(
 
     if min_value is not None and parsed < min_value:
         raise RequestValidationError(f"{field_name} must be >= {min_value}")
+
+    if max_value is not None and parsed > max_value:
+        raise RequestValidationError(f"{field_name} must be <= {max_value}")
 
     return parsed
 
@@ -150,6 +163,7 @@ class SynthesisRequest:
                 field_name="sentence_silence",
                 default=default_sentence_silence,
                 min_value=0.0,
+                max_value=MAX_SENTENCE_SILENCE,
             ),
             length_scale=parse_float(
                 data.get("length_scale"),
@@ -159,6 +173,8 @@ class SynthesisRequest:
                     if default_length_scale is not None
                     else DEFAULT_LENGTH_SCALE
                 ),
+                min_value=MIN_LENGTH_SCALE,
+                max_value=MAX_LENGTH_SCALE,
             ),
             noise_scale=parse_float(
                 data.get("noise_scale"),
@@ -168,6 +184,8 @@ class SynthesisRequest:
                     if default_noise_scale is not None
                     else DEFAULT_NOISE_SCALE
                 ),
+                min_value=MIN_NOISE_SCALE,
+                max_value=MAX_NOISE_SCALE,
             ),
             noise_w_scale=parse_float(
                 data.get("noise_w_scale"),
@@ -177,6 +195,8 @@ class SynthesisRequest:
                     if default_noise_w_scale is not None
                     else DEFAULT_NOISE_W_SCALE
                 ),
+                min_value=MIN_NOISE_W_SCALE,
+                max_value=MAX_NOISE_W_SCALE,
             ),
             normalize_audio=parse_bool(
                 data.get("normalize_audio"),
@@ -188,6 +208,8 @@ class SynthesisRequest:
                 data.get("volume"),
                 field_name="volume",
                 default=DEFAULT_VOLUME,
+                min_value=MIN_VOLUME,
+                max_value=MAX_VOLUME,
             ),
             include_alignments=parse_bool(
                 data.get("include_alignments"),
