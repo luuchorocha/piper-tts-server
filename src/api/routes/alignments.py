@@ -4,11 +4,12 @@ import time
 
 from starlette.formparsers import MultiPartException
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import HTMLResponse, JSONResponse, Response
 
 from src.core.context import AppContext, SynthesisOverloadedError
 from src.parsers.alignments import AudioUploadTooLarge, parse_uploaded_alignment_request
 from src.parsers.synthesis.request import RequestValidationError
+from src.renderers.alignments.page import build_alignments_html
 from src.services.alignments import UploadedAlignmentResult, align_uploaded_wav
 
 LOGGER = logging.getLogger(__name__)
@@ -32,6 +33,9 @@ def _alignment_response(result: UploadedAlignmentResult) -> JSONResponse:
 
 def build_alignments_handler(context: AppContext):
     async def align(request: Request) -> Response:
+        if request.method == "GET":
+            return HTMLResponse(build_alignments_html())
+
         started_at = time.monotonic()
 
         if not _is_multipart(request):

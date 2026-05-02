@@ -250,6 +250,33 @@ class UploadedAlignmentRouteTest(unittest.TestCase):
         self.assertNotIn("audio_base64", payload)
         self.assertEqual("hello", engine.calls[0]["text"])
 
+    def test_route_get_returns_basic_ui(self):
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        request = Request(
+            {
+                "type": "http",
+                "http_version": "1.1",
+                "method": "GET",
+                "path": "/alignments",
+                "raw_path": b"/alignments",
+                "query_string": b"",
+                "headers": [],
+                "client": ("127.0.0.1", 12345),
+                "server": ("testserver", 80),
+                "scheme": "http",
+            },
+            receive,
+        )
+
+        response = asyncio.run(self._handler(_RecordingAlignmentEngine())(request))
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual("text/html; charset=utf-8", response.headers["content-type"])
+        self.assertIn(b'fetch("/alignments"', response.body)
+        self.assertIn(b'name="audio"', response.body)
+
     def test_route_rejects_non_multipart_requests(self):
         sent = False
 

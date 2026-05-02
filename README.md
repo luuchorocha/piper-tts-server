@@ -20,6 +20,7 @@ Voice models are **not** baked into the image — mount a volume at `/models` or
 | Method | Path          | Description                                    |
 |--------|---------------|------------------------------------------------|
 | POST   | `/`           | Synthesize text → WAV audio                    |
+| GET    | `/alignments` | Basic browser UI for testing uploaded WAV alignment |
 | POST   | `/alignments` | Align uploaded WAV speech → word timestamps    |
 | GET    | `/health`     | Readiness check for the default voice           |
 | GET    | `/voices`     | List locally available voice models             |
@@ -180,6 +181,8 @@ The default response path uses `forced_ctc`. To compare against the legacy heuri
 ### POST `/alignments` — Uploaded WAV word timestamps
 
 Align an existing WAV file against a known transcript and return word timestamps. This endpoint does not perform speech-to-text; `text` is required and must match the speech in the uploaded audio closely enough for the configured alignment engine.
+
+Open `GET /alignments` in a browser for a minimal upload form that submits to this endpoint.
 
 ```sh
 curl -s http://localhost:5000/alignments \

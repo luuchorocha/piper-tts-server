@@ -20,7 +20,7 @@ def build_routes(context: AppContext) -> list[Route]:
             build_synthesis_handler(context, force_alignments=True),
             methods=["GET", "POST"],
         ),
-        Route("/alignments", build_alignments_handler(context), methods=["POST"]),
+        Route("/alignments", build_alignments_handler(context), methods=["GET", "POST"]),
         Route("/health", build_health_handler(context), methods=["GET"]),
         Route("/voices", build_voices_handler(context), methods=["GET"]),
         Route("/all-voices", build_all_voices_handler(), methods=["GET"]),

@@ -304,6 +304,19 @@ def build_openapi_schema() -> dict:
                 },
             },
             "/alignments": {
+                "get": {
+                    "tags": ["synthesis"],
+                    "summary": "Alignment tester UI",
+                    "description": "Returns a minimal browser form for testing uploaded WAV alignment against POST /alignments.",
+                    "responses": {
+                        "200": {
+                            "description": "HTML alignment tester.",
+                            "content": {
+                                "text/html": {"schema": {"type": "string"}}
+                            },
+                        }
+                    },
+                },
                 "post": {
                     "tags": ["synthesis"],
                     "summary": "Align uploaded speech with word timestamps",
