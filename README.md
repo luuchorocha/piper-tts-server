@@ -20,6 +20,7 @@ Voice models are **not** baked into the image — mount a volume at `/models` or
 | Method | Path          | Description                                    |
 |--------|---------------|------------------------------------------------|
 | POST   | `/`           | Synthesize text → WAV audio                    |
+| POST   | `/alignments` | Align uploaded WAV speech → word timestamps    |
 | GET    | `/health`     | Readiness check for the default voice           |
 | GET    | `/voices`     | List locally available voice models             |
 | GET    | `/all-voices` | List all Piper voices from HuggingFace catalog  |
@@ -175,6 +176,44 @@ curl -s http://localhost:5000/timestamps \
 ```
 
 The default response path uses `forced_ctc`. To compare against the legacy heuristic aligner locally, start the server with `ALIGNMENT_METHOD=silence`.
+
+### POST `/alignments` — Uploaded WAV word timestamps
+
+Align an existing WAV file against a known transcript and return word timestamps. This endpoint does not perform speech-to-text; `text` is required and must match the speech in the uploaded audio closely enough for the configured alignment engine.
+
+```sh
+curl -s http://localhost:5000/alignments \
+  -F 'audio=@speech.wav;type=audio/wav' \
+  -F 'text=Hello world' \
+  -F 'grammar=Hello world|Hello there'
+```
+
+Request fields:
+
+| Field     | Required | Description |
+|-----------|----------|-------------|
+| `audio`   | Yes      | Uploaded 16-bit PCM WAV file, up to 50 MB |
+| `text`    | Yes      | Transcript used for forced alignment |
+| `grammar` | No       | Optional alignment hints as `|`-separated phrases, or repeated form fields |
+
+Successful responses are JSON and do not include generated audio:
+
+```json
+{
+  "sample_rate": 16000,
+  "alignment_mode": "forced_ctc",
+  "alignment_supported": true,
+  "alignment_error": null,
+  "alignments": {
+    "words": [
+      {"word": "Hello", "start": 0.06, "end": 0.34},
+      {"word": "world", "start": 0.38, "end": 0.76}
+    ]
+  }
+}
+```
+
+Invalid multipart requests or unsupported WAV files return `400`; uploads over 50 MB return `413`. If the request is valid but alignment fails, the response remains `200` with `alignment_supported=false` and `alignment_error` explaining why.
 
 ## Docker
 

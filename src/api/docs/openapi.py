@@ -175,6 +175,69 @@ def _synthesis_responses(*, default_json: bool) -> dict:
     return responses
 
 
+def _alignment_request_body() -> dict:
+    return {
+        "required": True,
+        "content": {
+            "multipart/form-data": {
+                "schema": {
+                    "type": "object",
+                    "required": ["audio", "text"],
+                    "properties": {
+                        "audio": {
+                            "type": "string",
+                            "format": "binary",
+                            "description": "16-bit PCM WAV file to align.",
+                        },
+                        "text": {
+                            "type": "string",
+                            "maxLength": 1000,
+                            "description": "Known transcript for forced alignment.",
+                        },
+                        "grammar": {
+                            "oneOf": [
+                                {"type": "string"},
+                                {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                            ],
+                            "description": "Optional alignment grammar hints. Use '|' to separate phrases, or repeat the form field.",
+                        },
+                    },
+                }
+            }
+        },
+    }
+
+
+def _alignment_responses() -> dict:
+    return {
+        "200": {
+            "description": "Alignment metadata and word timestamps for the uploaded WAV.",
+            "content": {
+                "application/json": {"schema": _schema_ref("UploadedAlignmentResponse")}
+            },
+        },
+        "400": {
+            "description": "Invalid multipart request or unsupported WAV input.",
+            "content": {"application/json": {"schema": _schema_ref("ErrorResponse")}},
+        },
+        "413": {
+            "description": "Uploaded WAV exceeds the 50 MB limit.",
+            "content": {"application/json": {"schema": _schema_ref("ErrorResponse")}},
+        },
+        "503": {
+            "description": "Alignment capacity is saturated. Retry later.",
+            "content": {"application/json": {"schema": _schema_ref("ErrorResponse")}},
+        },
+        "500": {
+            "description": "Unexpected alignment failure.",
+            "content": {"application/json": {"schema": _schema_ref("ErrorResponse")}},
+        },
+    }
+
+
 def _download_parameters() -> list[dict]:
     return [
         {
@@ -238,6 +301,15 @@ def build_openapi_schema() -> dict:
                     "description": "Always returns JSON with base64 WAV audio, alignment metadata, and timestamps. The default engine is forced_ctc.",
                     "requestBody": _synthesis_request_body(include_alignments=False),
                     "responses": _synthesis_responses(default_json=True),
+                },
+            },
+            "/alignments": {
+                "post": {
+                    "tags": ["synthesis"],
+                    "summary": "Align uploaded speech with word timestamps",
+                    "description": "Accepts a multipart 16-bit PCM WAV upload plus a required transcript and returns word timestamps. This is forced alignment, not speech-to-text transcription.",
+                    "requestBody": _alignment_request_body(),
+                    "responses": _alignment_responses(),
                 },
             },
             "/download": {
@@ -470,6 +542,27 @@ def build_openapi_schema() -> dict:
                     ],
                     "properties": {
                         "audio_base64": {"type": "string", "format": "byte"},
+                        "sample_rate": {"type": "integer"},
+                        "alignment_mode": {
+                            "type": "string",
+                            "description": "Alignment engine used for this response, for example forced_ctc or silence.",
+                        },
+                        "alignment_supported": {"type": "boolean"},
+                        "alignment_error": {
+                            "type": "string",
+                            "description": "Human-readable reason when the requested alignment could not be produced.",
+                        },
+                        "alignments": _schema_ref("AlignmentResult"),
+                    },
+                },
+                "UploadedAlignmentResponse": {
+                    "type": "object",
+                    "required": [
+                        "sample_rate",
+                        "alignment_supported",
+                        "alignments",
+                    ],
+                    "properties": {
                         "sample_rate": {"type": "integer"},
                         "alignment_mode": {
                             "type": "string",

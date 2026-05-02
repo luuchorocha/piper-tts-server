@@ -1,5 +1,6 @@
 from starlette.routing import Route
 
+from src.api.routes.alignments import build_alignments_handler
 from src.api.routes.docs import openapi_json, swagger_ui
 from src.api.routes.download import build_download_handler
 from src.api.routes.health import build_health_handler
@@ -19,6 +20,7 @@ def build_routes(context: AppContext) -> list[Route]:
             build_synthesis_handler(context, force_alignments=True),
             methods=["GET", "POST"],
         ),
+        Route("/alignments", build_alignments_handler(context), methods=["POST"]),
         Route("/health", build_health_handler(context), methods=["GET"]),
         Route("/voices", build_voices_handler(context), methods=["GET"]),
         Route("/all-voices", build_all_voices_handler(), methods=["GET"]),

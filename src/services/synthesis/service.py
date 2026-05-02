@@ -14,6 +14,7 @@ from src.services.alignment import (
     AlignmentEngine,
 )
 from src.services.alignment.piper_native import align_from_piper_phonemes
+from src.services.audio import read_pcm_wav
 
 LOGGER = logging.getLogger(__name__)
 
@@ -199,14 +200,13 @@ def synthesize_text(
                 alignment_error = "Alignment engine supports 16-bit PCM audio only"
                 alignment = AlignmentResult(sample_rate=sample_rate)
             else:
-                with wave.open(io.BytesIO(wav_bytes), "rb") as wav_reader:
-                    pcm_bytes = wav_reader.readframes(wav_reader.getnframes())
+                audio = read_pcm_wav(wav_bytes)
 
                 try:
                     alignment = alignment_engine.align(
                         text=request_data.text,
                         grammar=request_data.grammar,
-                        pcm_bytes=pcm_bytes,
+                        pcm_bytes=audio.pcm_bytes,
                         sample_rate=sample_rate,
                         channels=sample_channels,
                     )
@@ -214,8 +214,6 @@ def synthesize_text(
                     alignment_supported = False
                     alignment_error = str(exc)
                     alignment = AlignmentResult(sample_rate=sample_rate)
-                finally:
-                    del pcm_bytes
 
         if alignment_supported and not alignment.words:
             alignment_supported = False
