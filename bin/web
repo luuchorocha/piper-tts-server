@@ -15,6 +15,5 @@ case ${1-} in
         ;;
 esac
 
-. "$ROOT_DIR/bin/env"
-cd "$ROOT_DIR"
-exec python3 main.py "$@"
+"$ROOT_DIR/bin/env" --quiet
+run_server "$ROOT_DIR" "$@"

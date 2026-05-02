@@ -4,30 +4,31 @@ set -e
 
 ROOT_DIR=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 . "$ROOT_DIR/bin/common"
-VENV_DIR=$ROOT_DIR/.venv
+QUIET=0
 
-case ${1-} in
-    -h|--help)
-        show_script_help \
-            'bin/env' \
-            ' [OPTIONS]' \
-            'Create or update the local Python virtual environment and install requirements.'
-        return 0 2>/dev/null || exit 0
-        ;;
-esac
+while [ $# -gt 0 ]; do
+    case $1 in
+        -h|--help)
+            show_script_help \
+                'bin/env' \
+                ' [OPTIONS]' \
+                'Create or update the local Python virtual environment and install requirements.'
+            printf '%s\n' '  -q, --quiet  Suppress the completion message'
+            exit 0
+            ;;
+        -q|--quiet)
+            QUIET=1
+            ;;
+        *)
+            printf 'Unknown option: %s\n' "$1" >&2
+            exit 1
+            ;;
+    esac
+    shift
+done
 
-if ! PYTHON_BIN=$(command -v python3); then
-    printf '%s\n' 'Python 3 is not installed. Please install Python 3 to run this application.' >&2
-    return 1 2>/dev/null || exit 1
+setup_virtualenv "$ROOT_DIR"
+
+if [ "$QUIET" -eq 0 ]; then
+    printf '%s\n' 'Environment setup complete.'
 fi
-
-"$PYTHON_BIN" -m venv "$VENV_DIR"
-
-PATH=$VENV_DIR/bin:$PATH
-VIRTUAL_ENV=$VENV_DIR
-export PATH VIRTUAL_ENV
-
-"$VENV_DIR/bin/python" -m pip install --quiet --disable-pip-version-check --progress-bar off --upgrade pip
-"$VENV_DIR/bin/python" -m pip install --quiet --disable-pip-version-check --progress-bar off -r "$ROOT_DIR/requirements.txt"
-
-printf '%s\n' 'Environment setup complete.'

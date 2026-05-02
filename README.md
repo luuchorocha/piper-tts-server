@@ -115,9 +115,8 @@ Rate-limited to one download at a time with a 90-second cooldown.
 | `requirements.txt`      | Pinned production Python dependencies                 |
 | `.python-version`       | Pins Python 3.11 for pyenv/asdf/mise                  |
 | `bin/env`               | Creates or refreshes the local Python virtualenv      |
-| `bin/dev`               | Preferred local development entrypoint                |
-| `bin/web`               | Minimal server entrypoint without the dev banner      |
-| `bin/deploy`            | One-command Heroku deployment                         |
+| `bin/dev`               | Runs `bin/env`, prints local endpoints, and starts the server |
+| `bin/web`               | Runs `bin/env` and starts the server without the dev banner |
 
 ## Local Development
 
@@ -129,15 +128,10 @@ Rate-limited to one download at a time with a 90-second cooldown.
 ### Setup
 
 ```sh
-cd bin/piper-container
-
-# Create a virtualenv
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
+./bin/env
 ```
+
+`bin/dev` and `bin/web` both reuse `bin/env`, so you only need to run `./bin/env` yourself when you want to prepare the virtualenv ahead of time.
 
 ### Run the server
 
@@ -145,6 +139,8 @@ pip install -r requirements.txt
 # Preferred local entrypoint
 ./bin/dev -m en_US-lessac-low --data-dir . --port 5000 --debug
 ```
+
+This refreshes `.venv`, prints the local endpoint summary, and launches the server.
 
 If you want to separate environment setup from server startup:
 
@@ -158,6 +154,8 @@ python3 -c "from piper.download_voices import download_voice; download_voice('en
 # Start the server without the development banner
 ./bin/web -m en_US-lessac-low --data-dir . --port 5000 --debug
 ```
+
+`./bin/web` also refreshes `.venv` first; it just skips the banner that `./bin/dev` prints.
 
 ### Test synthesis
 
@@ -210,19 +208,9 @@ The endpoint returns HTTP `200` when the configured default voice is available a
 ## Deployment (Heroku)
 
 ```sh
-# One-command deploy
-./bin/deploy
-
-# Or manually
 heroku container:login
 heroku container:push web --app story-maker-piper
 heroku container:release web --app story-maker-piper
-```
-
-To target a different Heroku app:
-
-```sh
-HEROKU_APP_NAME=my-piper-app ./bin/deploy
 ```
 
 The container reads Heroku's runtime `PORT` environment variable automatically, so no Procfile command override is required.

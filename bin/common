@@ -13,20 +13,87 @@ show_script_help() {
     printf '%s\n' '  -h, --help  Show this help message and exit'
 }
 
-print_server_banner() {
-    local HOST=`hostname -I | awk '{print $1}'`
-    local PORT=5000
-    local PROTOCOL=http
-    local URL="$PROTOCOL://$HOST:$PORT"
+require_python3() {
+    python_bin=$(command -v python3 2>/dev/null) || {
+        printf '%s\n' 'Python 3 is not installed. Please install Python 3 to run this application.' >&2
+        return 1
+    }
 
-    printf '%s\n' "Server listening on $URL"
-    printf '%s\n' "GET            $URL/docs             Open interactive Swagger UI docs with Try it out"
-    printf '%s\n' "GET            $URL/openapi.json     OpenAPI schema for the HTTP API"
-    printf '%s\n' "GET|POST       $URL/                 Synthesize text into WAV audio or alignment JSON"
-    printf '%s\n' "GET|POST       $URL/timestamps       Synthesize text and always return timestamp JSON"
-    printf '%s\n' "GET            $URL/health           Report server readiness"
-    printf '%s\n' "GET            $URL/voices           List voices available locally"
-    printf '%s\n' "GET            $URL/all-voices       List the full remote voice catalog"
-    printf '%s\n' "GET            $URL/playroom         Open the browser playground UI"
-    printf '%s\n' "GET|POST       $URL/download         Download a voice by id"
+    printf '%s\n' "$python_bin"
+}
+
+setup_virtualenv() {
+    root_dir=$1
+    venv_dir=$root_dir/.venv
+    python_bin=$(require_python3) || return 1
+
+    "$python_bin" -m venv "$venv_dir"
+    "$venv_dir/bin/python" -m pip install --quiet --disable-pip-version-check --progress-bar off --upgrade pip
+    "$venv_dir/bin/python" -m pip install --quiet --disable-pip-version-check --progress-bar off -r "$root_dir/requirements.txt"
+}
+
+resolve_server_arg() {
+    option_name=$1
+    default_value=$2
+    shift 2
+
+    while [ $# -gt 0 ]; do
+        case $1 in
+            "$option_name")
+                shift
+                if [ $# -eq 0 ] || [ "${1#-}" != "$1" ]; then
+                    break
+                fi
+                printf '%s\n' "$1"
+                return 0
+                ;;
+            "$option_name"=*)
+                printf '%s\n' "${1#*=}"
+                return 0
+                ;;
+        esac
+        shift
+    done
+
+    printf '%s\n' "$default_value"
+}
+
+banner_host() {
+    host=$(resolve_server_arg "--host" "0.0.0.0" "$@")
+
+    if [ "$host" = "0.0.0.0" ]; then
+        detected_host=$(hostname -I 2>/dev/null | awk '{print $1}')
+        if [ -n "$detected_host" ]; then
+            host=$detected_host
+        else
+            host=127.0.0.1
+        fi
+    fi
+
+    printf '%s\n' "$host"
+}
+
+print_server_banner() {
+    host=$(banner_host "$@")
+    port=$(resolve_server_arg "--port" "${PORT:-5000}" "$@")
+    url="http://$host:$port"
+
+    printf '%s\n' "Server listening on $url"
+    printf '%s\n' "GET            $url/docs             Open interactive Swagger UI docs with Try it out"
+    printf '%s\n' "GET            $url/openapi.json     OpenAPI schema for the HTTP API"
+    printf '%s\n' "GET|POST       $url/                 Synthesize text into WAV audio or alignment JSON"
+    printf '%s\n' "GET|POST       $url/timestamps       Synthesize text and always return timestamp JSON"
+    printf '%s\n' "GET            $url/health           Report server readiness"
+    printf '%s\n' "GET            $url/voices           List voices available locally"
+    printf '%s\n' "GET            $url/all-voices       List the full remote voice catalog"
+    printf '%s\n' "GET            $url/playroom         Open the browser playground UI"
+    printf '%s\n' "GET|POST       $url/download         Download a voice by id"
+}
+
+run_server() {
+    root_dir=$1
+    shift
+
+    cd "$root_dir"
+    exec "$root_dir/.venv/bin/python" main.py "$@"
 }
