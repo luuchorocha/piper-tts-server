@@ -1,0 +1,14 @@
+.data/
+.git/
+.venv/
+.vscode/
+bin/
+tests/
+**/__pycache__/
+**/.pytest_cache/
+**/*.onnx
+**/*.onnx.json
+*.md
+*.txt.bak
+test_*.py
+Makefile

@@ -1,0 +1,6 @@
+# Production dependencies — must stay in sync with the Dockerfile pip install line.
+piper-tts>=1.2.0,<2
+torch>=2.4,<3
+torchaudio>=2.4,<3
+uvicorn>=0.30,<1
+starlette>=0.38,<1

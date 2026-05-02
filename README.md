@@ -1,0 +1,275 @@
+# Piper TTS Container
+
+Production HTTP API for [Piper](https://github.com/rhasspy/piper) text-to-speech, built with Starlette + Uvicorn. Used by Story Maker's Rails backend (`Tts::PiperClient`) to synthesize page audio.
+
+## Architecture
+
+```
+Story Maker (Rails)            Piper Container
+───────────────────           ─────────────────
+Tts::PiperClient  ──POST /──▶  main.py
+                                  │
+                                  └─ PiperVoice (ONNX inference)
+                  ◀── WAV ────
+```
+
+Voice models are **not** baked into the image — mount a volume at `/models` or use the `/download` endpoint at runtime.
+
+## Endpoints
+
+| Method | Path          | Description                                    |
+|--------|---------------|------------------------------------------------|
+| POST   | `/`           | Synthesize text → WAV audio                    |
+| GET    | `/health`     | Readiness check for the default voice           |
+| GET    | `/voices`     | List locally available voice models             |
+| GET    | `/all-voices` | List all Piper voices from HuggingFace catalog  |
+| GET    | `/playroom`   | Single-page TTS testing UI                      |
+| POST   | `/download`   | Download a voice model at runtime               |
+
+### POST `/` — Synthesis
+
+Request body (JSON):
+
+```json
+{
+  "text": "Hello world",
+  "voice": "en_US-lessac-low",
+  "speaker_id": 0,
+  "speaker": "default",
+  "sentence_silence": 0.0,
+  "length_scale": 1.0,
+  "noise_scale": 0.667,
+  "noise_w_scale": 0.8,
+  "volume": 1.0,
+  "normalize_audio": true,
+  "include_alignments": false
+}
+```
+
+Only `text` is required. `speaker` is a named speaker string for multi-speaker voices; `speaker_id` is the numeric alternative. Request payload values override the server's CLI/env defaults for the same synthesis fields.
+
+**Standard response** (when `include_alignments` is `false` or omitted): raw `audio/wav`.
+
+**Alignment response** (when `include_alignments` is `true`): `application/json` with this structure:
+
+```json
+{
+  "audio_base64": "<base64-encoded WAV>",
+  "sample_rate": 16000,
+  "alignment_mode": "forced_ctc",
+  "alignment_supported": true,
+  "alignment_error": null,
+  "alignments": {
+    "phonemes": [],
+    "words": [
+      {"word": "Hello", "start": 0.0605, "end": 0.343, "phoneme_indices": []},
+      {"word": "world", "start": 0.3833, "end": 0.7666, "phoneme_indices": []}
+    ]
+  }
+}
+```
+
+Alignment data enables audio-to-text synchronization for lip-sync, karaoke, subtitles, etc.
+
+The server currently supports two alignment modes:
+
+- `forced_ctc`: the default English-first torchaudio CTC forced aligner
+- `silence`: the legacy energy-based heuristic aligner, available via `ALIGNMENT_METHOD=silence`
+
+When alignments are requested, the JSON payload includes `alignment_mode`, `alignment_supported`, and `alignment_error` so consumers can tell which engine ran and whether alignment succeeded.
+
+Current forced CTC notes:
+
+- `forced_ctc` is the default alignment engine.
+- The current implementation is English-first and normalizes tokens to an ASCII-ish uppercase transcript for alignment.
+- The current `forced_ctc` response populates `words` and leaves `phonemes` empty.
+- The first request using a new torchaudio bundle may download the acoustic model checkpoint into the local torch cache, which can add startup latency.
+- If forced alignment fails, the Piper response still returns audio but sets `alignment_supported=false` and includes a human-readable `alignment_error`.
+
+### GET `/playroom`
+
+Serves a simple browser testing page with:
+
+- language selection grouped from `/all-voices`
+- voice selection filtered by language
+- editable synthesis parameters
+- a text input area
+- generated audio history with HTML5 players
+
+### POST `/download`
+
+```json
+{ "voice": "en_US-lessac-medium", "force_redownload": false }
+```
+
+Rate-limited to one download at a time with a 90-second cooldown.
+
+## Files
+
+| File                    | Purpose                                              |
+|-------------------------|------------------------------------------------------|
+| `main.py`               | Thin entrypoint that launches the modular server      |
+| `src/`           | Server package: CLI, routes, managers, parsers, renderers, services |
+| `Dockerfile`            | Production image (python:3.11-slim)                   |
+| `.dockerignore`         | Whitelist for Docker build context                    |
+| `requirements.txt`      | Pinned production Python dependencies                 |
+| `.python-version`       | Pins Python 3.11 for pyenv/asdf/mise                  |
+| `bin/env`               | Creates or refreshes the local Python virtualenv      |
+| `bin/dev`               | Preferred local development entrypoint                |
+| `bin/web`               | Minimal server entrypoint without the dev banner      |
+| `bin/deploy`            | One-command Heroku deployment                         |
+
+## Local Development
+
+### Prerequisites
+
+- Python 3.10+ (3.11 recommended)
+- A Piper voice model (`.onnx` + `.onnx.json`)
+
+### Setup
+
+```sh
+cd bin/piper-container
+
+# Create a virtualenv
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### Run the server
+
+```sh
+# Preferred local entrypoint
+./bin/dev -m en_US-lessac-low --data-dir . --port 5000 --debug
+```
+
+If you want to separate environment setup from server startup:
+
+```sh
+./bin/env
+
+# Download a voice model first (if you don't have one)
+. .venv/bin/activate
+python3 -c "from piper.download_voices import download_voice; download_voice('en_US-lessac-low', '.')"
+
+# Start the server without the development banner
+./bin/web -m en_US-lessac-low --data-dir . --port 5000 --debug
+```
+
+### Test synthesis
+
+```sh
+curl -s http://localhost:5000/ \
+  -H 'Content-Type: application/json' \
+  -d '{"text": "The quick brown fox jumps over the lazy dog."}' \
+  --output output.wav
+```
+
+### Test timestamps
+
+```sh
+curl -s http://localhost:5000/timestamps \
+  -H 'Content-Type: application/json' \
+  -d '{"text": "Hello world", "voice": "en_US-lessac-low"}'
+```
+
+The default response path uses `forced_ctc`. To compare against the legacy heuristic aligner locally, start the server with `ALIGNMENT_METHOD=silence`.
+
+## Docker
+
+### Build
+
+```sh
+cd bin/piper-container
+docker build -t piper-tts .
+```
+
+### Run locally
+
+```sh
+# With a local models directory
+docker run -p 5000:5000 -v /path/to/models:/models piper-tts
+
+# Or let it download a voice on first request
+docker run -p 5000:5000 -e PIPER_ALLOW_DOWNLOADS=1 piper-tts
+```
+
+The production image binds to `0.0.0.0` and reads the listen port from `$PORT`, so the same image works locally and on Heroku without extra CLI flags.
+
+### Verify
+
+```sh
+curl http://localhost:5000/health
+```
+
+The endpoint returns HTTP `200` when the configured default voice is available and the synthesis queue is healthy. It returns HTTP `503` when the default voice is unavailable or the synthesis capacity is saturated.
+
+## Deployment (Heroku)
+
+```sh
+# One-command deploy
+./bin/deploy
+
+# Or manually
+heroku container:login
+heroku container:push web --app story-maker-piper
+heroku container:release web --app story-maker-piper
+```
+
+To target a different Heroku app:
+
+```sh
+HEROKU_APP_NAME=my-piper-app ./bin/deploy
+```
+
+The container reads Heroku's runtime `PORT` environment variable automatically, so no Procfile command override is required.
+
+Heroku dynos have an ephemeral filesystem. If the default voice is downloaded into `/models`, it will be lost on dyno restart or redeploy. For predictable boot-time readiness you have two options:
+
+- extend the image/build process to bake the default voice into the image at build time
+- allow on-demand downloads and accept that `/health` will stay `503` until the default voice exists locally
+
+Useful checks after deploy:
+
+```sh
+heroku logs --tail --app story-maker-piper
+curl https://story-maker-piper.herokuapp.com/health
+```
+
+The Rails app connects via the `PIPER_URL` env var (e.g. `https://story-maker-piper-abc123.herokuapp.com`).
+
+## Environment Variables
+
+### Server configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VOICE` | `en_US-lessac-low` | Default voice model name |
+| `DATA_DIR` | `/models` | Directory to search for `.onnx` voice files |
+| `PORT` | `5000` | HTTP listen port |
+| `PIPER_ALLOW_DOWNLOADS` | `true` | Enable `/download` endpoint |
+| `SYNTHESIS_CONCURRENCY` | `1` | Max simultaneous synthesis requests allowed inside a worker |
+| `SYNTHESIS_ACQUIRE_TIMEOUT_SECONDS` | `5` | How long a request may wait for synthesis capacity before returning `503` |
+| `MAX_WAITING_SYNTHESIS_REQUESTS` | `2` | Extra synthesis requests allowed to wait before new requests are rejected |
+
+### ONNX Runtime tuning
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PIPER_MAX_LOADED_VOICES` | `1` | Max voice models cached in RAM (`0` = load fresh each request) |
+| `PIPER_INTRA_OP_THREADS` | `1` | Threads within a single ONNX operator |
+| `PIPER_INTER_OP_THREADS` | `1` | Threads across independent ONNX operators |
+| `PIPER_EXECUTION_MODE` | `sequential` | `sequential` or `parallel` |
+| `PIPER_ENABLE_CPU_MEM_ARENA` | `1` | Pre-allocate CPU memory arena |
+| `PIPER_ENABLE_MEM_PATTERN` | `1` | Reuse memory allocation patterns |
+
+### Resource control (set in Dockerfile)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MALLOC_ARENA_MAX` | `1` | Limits glibc malloc arenas (reduces RSS) |
+| `OMP_NUM_THREADS` | `1` | Caps OpenMP threads |
+| `OPENBLAS_NUM_THREADS` | `1` | Caps NumPy/OpenBLAS threads |

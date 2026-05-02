@@ -1,0 +1,21 @@
+#!/bin/sh
+
+set -e
+
+ROOT_DIR=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+. "$ROOT_DIR/bin/common"
+
+case ${1-} in
+    -h|--help)
+        show_script_help \
+            'bin/dev' \
+            ' [OPTIONS] [-- SERVER_ARGS...]' \
+            'Prepare the environment, print the local endpoint summary, and start the server.'
+        exit 0
+        ;;
+esac
+
+. "$ROOT_DIR/bin/env"
+print_server_banner
+cd "$ROOT_DIR"
+exec python3 main.py "$@"
