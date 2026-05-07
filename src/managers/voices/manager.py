@@ -148,11 +148,7 @@ class VoiceManager:
         """
         model_id = requested_model_id or self.default_model_id
         model_path = self.catalog.ensure_available(model_id)
-        if model_path is None and model_id != self.default_model_id:
-            LOGGER.warning("Voice not found: %s - falling back to default", model_id)
-            model_id = self.default_model_id
-            model_path = self.catalog.ensure_available(model_id) or self.default_model_path
-        elif model_path is None:
+        if model_path is None and model_id == self.default_model_id:
             model_path = self.default_model_path
 
         if model_path is None:

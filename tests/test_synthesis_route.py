@@ -17,8 +17,10 @@ class _FakeVoiceManager:
 
     def __init__(self) -> None:
         self.released: list[tuple[str, bool]] = []
+        self.requests: list[str] = []
 
     def get(self, requested_voice):
+        self.requests.append(requested_voice)
         return {"voice": requested_voice}, requested_voice or self.default_model_id, False
 
     def release(self, voice, lease_id, is_ephemeral):
@@ -39,10 +41,11 @@ class SynthesisRouteTest(unittest.TestCase):
             noise_w_scale=None,
             synthesis_acquire_timeout_seconds=5,
         )
+        self.voice_manager = _FakeVoiceManager()
         context = AppContext(
             args=args,
             data_dirs=[],
-            voice_manager=_FakeVoiceManager(),
+            voice_manager=self.voice_manager,
             synthesis_capacity=SynthesisCapacity(
                 limit=1,
                 acquire_timeout_seconds=5,
@@ -51,6 +54,7 @@ class SynthesisRouteTest(unittest.TestCase):
             alignment_engine=_FakeAlignmentEngine(),
         )
         self.handler = build_synthesis_handler(context, force_alignments=True)
+        self.synthesis_handler = build_synthesis_handler(context)
 
     def _build_request(self, payload):
         body = json.dumps(payload).encode("utf-8")
@@ -77,6 +81,46 @@ class SynthesisRouteTest(unittest.TestCase):
             "scheme": "http",
         }
         return Request(scope, receive)
+
+    def _build_get_request(self, query_string: bytes):
+        async def receive():
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        scope = {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "GET",
+            "path": "/",
+            "raw_path": b"/",
+            "query_string": query_string,
+            "headers": [],
+            "client": ("127.0.0.1", 12345),
+            "server": ("testserver", 80),
+            "scheme": "http",
+        }
+        return Request(scope, receive)
+
+    def test_get_synthesis_uses_voice_query_parameter(self):
+        synthesis_result = SynthesisResult(
+            wav_bytes=b"RIFFDATA",
+            sample_rate=22_050,
+            alignment=None,
+            alignment_supported=False,
+            alignment_error=None,
+            alignment_mode="none",
+        )
+
+        with patch("src.api.routes.synthesis.synthesize_text", return_value=synthesis_result) as synthesize_mock:
+            response = asyncio.run(
+                self.synthesis_handler(
+                    self._build_get_request(b"text=hola&voice=en_GB-cori-medium")
+                )
+            )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(["en_GB-cori-medium"], self.voice_manager.requests)
+        request_data = synthesize_mock.call_args.kwargs["request_data"]
+        self.assertEqual("en_GB-cori-medium", request_data.requested_voice)
 
     def test_timestamps_route_returns_alignment_mode_and_forces_alignments(self):
         synthesis_result = SynthesisResult(
