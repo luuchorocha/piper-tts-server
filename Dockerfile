@@ -4,11 +4,20 @@ FROM python:${PYTHON_VERSION} AS base
 
 # Image defaults. Stages inherit these values so configuration stays in one place.
 
-# VIRTUAL_ENV: virtualenv location copied from builder to runtime; use another absolute path only if the copy paths also change.
+# VIRTUAL_ENV: virtualenv location copied from builder to runtime; use another absolute path only if this image layout changes.
 ENV VIRTUAL_ENV=/opt/venv
 
+# APP_DIR: where the application code lives inside the image; WORKDIR and COPY destinations reuse this.
+ENV APP_DIR=/app
+
+# MODEL_DIR: primary persistent model directory; this is the path declared as the Docker volume.
+ENV MODEL_DIR=/models
+
+# REQUIREMENTS_FILE: temporary build-stage path for production Python dependencies.
+ENV REQUIREMENTS_FILE=/tmp/requirements.txt
+
 # PATH: makes the virtualenv's Python and console scripts take priority; prepend more paths here if needed.
-ENV PATH="/opt/venv/bin:${PATH}"
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
 # PORT: HTTP listen port read by the server; set to any valid TCP port, or let platforms like Heroku override it.
 ENV PORT=5000
@@ -17,7 +26,7 @@ ENV PORT=5000
 ENV VOICE=en_US-hfc_male-medium
 
 # DATA_DIR: model search directory list; on Linux, multiple paths can be separated with ':' such as /models:/extra-models.
-ENV DATA_DIR=/models
+ENV DATA_DIR="${MODEL_DIR}"
 
 # ALIGNMENT_METHOD: timestamp engine; valid values are forced_ctc or silence.
 ENV ALIGNMENT_METHOD=forced_ctc
@@ -86,14 +95,14 @@ ENV MAX_WAITING_SYNTHESIS_REQUESTS=2
 # Build Python dependencies once, then copy the virtualenv into the runtime image.
 FROM base AS builder
 
-COPY requirements.txt /tmp/requirements.txt
+COPY requirements.txt ${REQUIREMENTS_FILE}
 
 # Use PyTorch's CPU wheel index because the forced aligner depends on torch/torchaudio.
 RUN python -m venv "${VIRTUAL_ENV}" \
   && pip install --no-cache-dir --no-compile \
     --extra-index-url https://download.pytorch.org/whl/cpu \
-    -r /tmp/requirements.txt \
-  && rm /tmp/requirements.txt \
+    -r "${REQUIREMENTS_FILE}" \
+  && rm "${REQUIREMENTS_FILE}" \
   && find "${VIRTUAL_ENV}" -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 
 
@@ -105,23 +114,23 @@ RUN apt-get update \
     ca-certificates \
     libgomp1 \
   && rm -rf /var/lib/apt/lists/* \
-  && mkdir -p /app /models
+  && mkdir -p "${APP_DIR}" "${MODEL_DIR}"
 
-COPY --from=builder /opt/venv /opt/venv
-COPY main.py /app/main.py
-COPY src /app/src
+COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
+COPY main.py ${APP_DIR}/main.py
+COPY src ${APP_DIR}/src
 
 RUN useradd -m -u 1000 piper \
-  && chown -R piper:piper /app /models
+  && chown -R piper:piper "${APP_DIR}" "${MODEL_DIR}"
 
 USER piper
-WORKDIR /app
+WORKDIR ${APP_DIR}
 
 # Dockerfiles can declare the mount point, but the stable volume name is chosen
 # when the container is run, for example: -v piper-models:/models.
-VOLUME ["/models"]
+VOLUME ["${MODEL_DIR}"]
 
-EXPOSE 5000
+EXPOSE ${PORT}
 
 ENTRYPOINT ["python"]
 CMD ["main.py"]
