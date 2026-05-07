@@ -1,16 +1,16 @@
 # Piper TTS Container
 
-Production HTTP API for [Piper](https://github.com/rhasspy/piper) text-to-speech, built with Starlette + Uvicorn. Used by Story Maker's Rails backend (`Tts::PiperClient`) to synthesize page audio.
+Production HTTP API for [Piper](https://github.com/rhasspy/piper) text-to-speech, built with Starlette + Uvicorn. It exposes speech synthesis, voice management, runtime model downloads, and optional timestamp alignment over HTTP for any client application.
 
 ## Architecture
 
 ```
-Story Maker (Rails)            Piper Container
-───────────────────           ─────────────────
-Tts::PiperClient  ──POST /──▶  main.py
-                                  │
-                                  └─ PiperVoice (ONNX inference)
-                  ◀── WAV ────
+HTTP client                  Piper TTS server
+───────────                  ─────────────────
+POST /        ────────────▶  main.py
+                                │
+                                └─ PiperVoice (ONNX inference)
+              ◀── WAV/JSON ──
 ```
 
 Voice models are **not** baked into the image — mount a volume at `/models` or use the `/download` endpoint at runtime.
@@ -223,19 +223,23 @@ Invalid multipart requests or unsupported WAV files return `400`; uploads over 5
 ### Build
 
 ```sh
-cd bin/piper-container
 docker build -t piper-tts .
 ```
 
 ### Run locally
 
 ```sh
+# With a persistent Docker-managed models volume
+docker run -p 5000:5000 -v piper-models:/models piper-tts
+
 # With a local models directory
 docker run -p 5000:5000 -v /path/to/models:/models piper-tts
 
-# Or let it download a voice on first request
-docker run -p 5000:5000 -e PIPER_ALLOW_DOWNLOADS=1 piper-tts
+# Or let it download a voice on first request and keep it in the named volume
+docker run -p 5000:5000 -v piper-models:/models -e PIPER_ALLOW_DOWNLOADS=1 piper-tts
 ```
+
+Docker creates the named `piper-models` volume on first use and reuses it across container restarts or replacements.
 
 The production image binds to `0.0.0.0` and reads the listen port from `$PORT`, so the same image works locally and on Heroku without extra CLI flags.
 
@@ -251,8 +255,8 @@ The endpoint returns HTTP `200` when the configured default voice is available a
 
 ```sh
 heroku container:login
-heroku container:push web --app story-maker-piper
-heroku container:release web --app story-maker-piper
+heroku container:push web --app your-piper-app
+heroku container:release web --app your-piper-app
 ```
 
 The container reads Heroku's runtime `PORT` environment variable automatically, so no Procfile command override is required.
@@ -265,11 +269,11 @@ Heroku dynos have an ephemeral filesystem. If the default voice is downloaded in
 Useful checks after deploy:
 
 ```sh
-heroku logs --tail --app story-maker-piper
-curl https://story-maker-piper.herokuapp.com/health
+heroku logs --tail --app your-piper-app
+curl https://your-piper-app.herokuapp.com/health
 ```
 
-The Rails app connects via the `PIPER_URL` env var (e.g. `https://story-maker-piper-abc123.herokuapp.com`).
+A client application can call the deployed server by its base URL, for example `https://your-piper-app.herokuapp.com`.
 
 ## Environment Variables
 
@@ -277,7 +281,7 @@ The Rails app connects via the `PIPER_URL` env var (e.g. `https://story-maker-pi
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `VOICE` | `en_US-lessac-low` | Default voice model name |
+| `VOICE` | `en_US-hfc_male-medium` | Default voice model name in the Docker image |
 | `DATA_DIR` | `/models` | Directory to search for `.onnx` voice files |
 | `PORT` | `5000` | HTTP listen port |
 | `PIPER_ALLOW_DOWNLOADS` | `true` | Enable `/download` endpoint |
